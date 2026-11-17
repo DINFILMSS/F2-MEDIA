@@ -1,0 +1,64 @@
+{
+  "name": "f2-equipamentos",
+  "productName": "F2 Equipamentos",
+  "version": "1.0.0",
+  "description": "Sistema de controle de equipamentos da produtora: catálogo, saídas, entradas, etiquetas e documentos.",
+  "main": "main.js",
+  "author": "F2",
+  "license": "UNLICENSED",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SEU-USUARIO/f2-equipamentos.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "release": "electron-builder --win --publish always",
+    "setup-github": "node scripts/setup-github.js"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "br.com.f2.equipamentos",
+    "productName": "F2 Equipamentos",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "F2 Equipamentos",
+      "artifactName": "F2-Equipamentos-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.png"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "SEU-USUARIO",
+        "repo": "f2-equipamentos",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

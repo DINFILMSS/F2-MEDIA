@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>F2 Equipamentos</title>
+  <link rel="stylesheet" href="styles.css">
+  <style id="page-style">@page { size: A4; margin: 0; }</style>
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand" id="brand"></div>
+      <nav id="nav"></nav>
+      <div class="sidebar-foot">
+        <div class="scan-hint"><span class="dot"></span> Leitor pronto</div>
+        <div class="version" id="version"></div>
+      </div>
+    </aside>
+    <main>
+      <header class="topbar">
+        <div class="crumbs" id="crumbs"></div>
+        <div class="quick">
+          <div class="search-global">
+            <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="globalSearch" placeholder="Buscar ou bipar código…  (Ctrl+K)" autocomplete="off">
+            <div class="search-results" id="searchResults"></div>
+          </div>
+          <button class="btn primary" data-go="#/saida/nova"><svg class="i" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg>Nova saída</button>
+        </div>
+      </header>
+      <div id="update-banner" class="update-banner hidden"></div>
+      <section id="view"></section>
+    </main>
+  </div>
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+  <div id="print-root"></div>
+  <script src="codes.js"></script>
+  <script src="store.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
