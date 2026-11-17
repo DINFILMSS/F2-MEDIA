@@ -523,7 +523,7 @@ route(/^#\/catalogo$/, {
     $('#addEq').onclick = () => editEquip();
     $('#selMode').onclick = () => { $$('#eqList [data-id]').forEach(el => ui.sel.add(el.dataset.id)); draw(); };
     $('#exportCsv').onclick = exportCSV;
-    $('#importEq').onclick = importEquip;
+    $('#importEq').onclick = () => importEquip();
     current.refresh = draw;
     draw();
   }
@@ -532,22 +532,26 @@ route(/^#\/catalogo$/, {
 // ============================================================
 // IMPORTAR EQUIPAMENTOS (soma ao inventário, nunca apaga)
 // ============================================================
-async function importEquip() {
-  const f = await pickFile('.json,application/json'); if (!f) return;
+async function importEquip(file) {
+  const f = file instanceof Blob ? file : await pickFile('.json,application/json'); if (!f) return;
   let data;
-  try { data = JSON.parse(await f.text()); } catch { return toast('Arquivo inválido', 'err'); }
-  if (data && data.settings && Array.isArray(data.equipamentos) && !data.tipo) return toast('Esse arquivo é um backup completo — use "Restaurar backup" em Configurações', 'warn');
+  try { data = JSON.parse((await f.text()).replace(/^\uFEFF/, '')); } catch { return toast('Arquivo inválido', 'err'); }
+  if (data && data.settings && Array.isArray(data.equipamentos) && !data.tipo) {
+    // backup completo ou arquivo de dados: importa só os equipamentos dele, somando
+    data = { fonte: f.name, equipamentos: data.equipamentos.map(e => ({ ...e, chave: 'bk-' + (e.importKey || e.id), quantidade: 1, origem: 'backup' })) };
+  }
   const lines = Array.isArray(data) ? data : data && Array.isArray(data.equipamentos) ? data.equipamentos : null;
   if (!lines || !lines.length) return toast('Nenhum equipamento encontrado no arquivo', 'err');
   const keys = new Set(db.equipamentos.map(e => e.importKey).filter(Boolean));
   const serials = new Set(db.equipamentos.map(e => norm(e.serie)).filter(Boolean));
+  const ids = new Set(db.equipamentos.map(e => e.id));
   const novos = [], pulados = [];
   lines.forEach((l, li) => {
     if (!l || !String(l.nome || '').trim()) return;
     const qtd = Math.max(1, Math.min(500, +l.quantidade || 1));
     for (let i = 0; i < qtd; i++) {
       const key = `${l.chave || 'imp-' + li}#${i + 1}`;
-      if (keys.has(key)) { pulados.push({ l, motivo: 'já importado antes' }); continue; }
+      if (keys.has(key) || (l.importKey && keys.has(l.importKey)) || (l.id && ids.has(l.id))) { pulados.push({ l, motivo: 'já importado antes' }); continue; }
       if (i === 0 && l.serie && serials.has(norm(l.serie))) { pulados.push({ l, motivo: `nº de série ${l.serie} já existe` }); continue; }
       novos.push({ l, key });
     }
@@ -1642,11 +1646,12 @@ route(/^#\/config$/, {
     $('#addCat').onclick = addCat; $('#newCat').onkeydown = e => e.key === 'Enter' && addCat();
     $('#bkExp').onclick = () => { download(`backup-equipamentos-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(db, null, 1), 'application/json'); toast('Backup exportado'); };
     $('#csvExp').onclick = exportCSV;
-    $('#eqImp').onclick = importEquip;
+    $('#eqImp').onclick = () => importEquip();
     $('#bkImp').onclick = async () => {
       const f = await pickFile('.json,application/json'); if (!f) return;
       try {
         const data = JSON.parse(await f.text());
+        if (!data.settings && Array.isArray(data.equipamentos)) { importEquip(f); return; }
         if (!data.settings || !Array.isArray(data.equipamentos)) throw new Error('arquivo inválido');
         if (!await confirmBox('Restaurar backup', `Substituir os dados atuais por <b>${data.equipamentos.length}</b> equipamentos e <b>${(data.movimentacoes || []).length}</b> movimentações do backup?`, 'Restaurar')) return;
         db = data; db.movimentacoes = db.movimentacoes || []; db.divergencias = db.divergencias || []; db.manutencoes = db.manutencoes || []; db.settings = { ...DEFAULT_SETTINGS, ...db.settings };

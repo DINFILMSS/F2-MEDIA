@@ -1,7 +1,7 @@
 {
   "name": "f2-equipamentos",
   "productName": "F2 Media Equipamentos",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Sistema de controle de equipamentos da produtora: catálogo, saídas, entradas, etiquetas e documentos.",
   "main": "main.js",
   "author": "F2",
