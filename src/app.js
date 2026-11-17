@@ -78,9 +78,10 @@ const CAT_ICONS = [
 const catIcon = c => { const n = norm(c); const f = CAT_ICONS.find(([r]) => r.test(n)); return f ? f[1] : 'box'; };
 const photo = (eq, cls = '') => `<div class="ph ${cls}">${eq && eq.foto ? `<img src="${eq.foto}" alt="">` : ic(catIcon(eq && eq.categoria))}</div>`;
 
-const STATUS = { disponivel: 'Disponível', em_uso: 'Em uso', manutencao: 'Manutenção', baixado: 'Baixado' };
+const STATUS = { disponivel: 'Disponível', em_uso: 'Em uso', bloqueado: 'Bloqueado', manutencao: 'Manutenção', baixado: 'Baixado' };
 const MOV_STATUS = { aberta: 'Em aberto', parcial: 'Retorno parcial', fechada: 'Concluída', atrasada: 'Atrasada' };
-const CONDICOES = { ok: 'OK', avaria: 'Com avaria', incompleto: 'Faltando acessório' };
+const CONDICOES = { ok: 'OK', avaria: 'Com avaria', incompleto: 'Faltando acessório', extraviado: 'Não voltou / extraviado' };
+const DIV_STATUS = { aberta: 'Aberta', resolvida: 'Resolvida' };
 const pill = (k, map = STATUS) => `<span class="pill ${k}">${map[k] || k}</span>`;
 
 // ============================================================
@@ -92,13 +93,13 @@ const OLD_TERMO_END = 'ressarcimento do valor de reposição indicado neste term
 
 const DEFAULT_SETTINGS = {
   empresa: 'F2 Media', subtitulo: 'Controle de equipamentos', cnpj: '', endereco: '', telefone: '', email: '', site: '',
-  logo: 'assets/logo.png', accent: '#00b2ee', brandV: 2, prefixo: 'F2', seqEquip: 1, seqSaida: 1, seqEntrada: 1,
+  logo: 'assets/logo.png', accent: '#00b2ee', brandV: 2, prefixo: 'F2', seqEquip: 1, seqSaida: 1, seqEntrada: 1, seqDiv: 1,
   categorias: ['Câmeras', 'Lentes', 'Iluminação', 'Áudio', 'Grip & Maquinária', 'Monitores', 'Baterias & Energia', 'Cabos & Conexões', 'Armazenamento', 'Tripés & Estabilizadores', 'Drones', 'Acessórios'],
   termo: DEFAULT_TERMO, operador: '',
   label: { model: 't50x30', qr: true, barcode: false, logo: true, nome: true, serie: true, prop: true, copies: 1 }
 };
 
-let db = { settings: { ...DEFAULT_SETTINGS }, equipamentos: [], movimentacoes: [] };
+let db = { settings: { ...DEFAULT_SETTINGS }, equipamentos: [], movimentacoes: [], divergencias: [] };
 let saving = Promise.resolve();
 
 async function loadDB() {
@@ -106,7 +107,7 @@ async function loadDB() {
   if (data && data.settings) {
     db = data;
     db.settings = { ...DEFAULT_SETTINGS, ...data.settings, label: { ...DEFAULT_SETTINGS.label, ...(data.settings.label || {}) } };
-    db.equipamentos = db.equipamentos || []; db.movimentacoes = db.movimentacoes || [];
+    db.equipamentos = db.equipamentos || []; db.movimentacoes = db.movimentacoes || []; db.divergencias = db.divergencias || [];
     if ((data.settings.brandV || 0) < 2) {
       Object.assign(db.settings, { brandV: 2, logo: data.settings.logo || 'assets/logo.png', accent: data.settings.logo ? db.settings.accent : '#00b2ee' });
       if (!data.settings.empresa || data.settings.empresa === 'F2 Produtora') db.settings.empresa = 'F2 Media';
@@ -132,6 +133,7 @@ function movState(m) {
   if (m.previsaoRetorno && new Date(m.previsaoRetorno) < new Date()) return 'atrasada';
   return pend < m.itens.length ? 'parcial' : 'aberta';
 }
+const openDivs = () => (db.divergencias || []).filter(d => d.status === 'aberta');
 const openMovs = () => db.movimentacoes.filter(m => !m.cancelada && m.itens.some(i => !i.retornado));
 const lateMovs = () => openMovs().filter(m => movState(m) === 'atrasada');
 function eqLog(eq, txt, tipo = 'misc') { (eq.log = eq.log || []).push({ t: new Date().toISOString(), tipo, txt }); }
@@ -244,6 +246,7 @@ const NAV = [
   { href: '#/catalogo', icon: 'box', label: 'Catálogo', badge: () => db.equipamentos.length || '' },
   { href: '#/saida/nova', icon: 'out', label: 'Nova saída' },
   { href: '#/movimentacoes', icon: 'swap', label: 'Saídas & Entradas', badge: () => { const l = lateMovs().length; return l ? { v: l, cls: '' } : (openMovs().length ? { v: openMovs().length, cls: 'warn' } : ''); } },
+  { href: '#/divergencias', icon: 'alert', label: 'Divergências', badge: () => { const n = openDivs().length; return n ? { v: n, cls: '' } : ''; } },
   { sec: 'Ferramentas' },
   { href: '#/etiquetas', icon: 'tag', label: 'Etiquetas' },
   { href: '#/config', icon: 'settings', label: 'Configurações' }
@@ -394,7 +397,7 @@ route(/^#\/?$/, {
         <div class="kpi acc" data-go="#/catalogo"><div class="ico">${ic('box')}</div><div class="lbl">Itens no inventário</div><div class="val">${E.length}</div><div class="sub">${catArr.length} categorias</div></div>
         <div class="kpi ok" data-k="disponivel"><div class="ico">${ic('check')}</div><div class="lbl">Disponíveis</div><div class="val">${cnt('disponivel')}</div><div class="sub">${Math.round(cnt('disponivel') / E.length * 100)}% do total</div></div>
         <div class="kpi warn" data-k="em_uso"><div class="ico">${ic('out')}</div><div class="lbl">Em uso / fora</div><div class="val">${cnt('em_uso')}</div><div class="sub">${money(emUsoValor)} em campo</div></div>
-        <div class="kpi info" data-k="manutencao"><div class="ico">${ic('wrench')}</div><div class="lbl">Manutenção</div><div class="val">${cnt('manutencao')}</div><div class="sub">aguardando reparo</div></div>
+        <div class="kpi ${openDivs().length ? 'bad' : 'info'}" data-go="#/divergencias"><div class="ico">${ic('alert')}</div><div class="lbl">Divergências</div><div class="val">${openDivs().length}</div><div class="sub">${cnt('bloqueado') + cnt('manutencao')} item(ns) bloqueado(s)</div></div>
         <div class="kpi ${late.length ? 'bad' : 'ok'}" data-go="#/movimentacoes"><div class="ico">${ic('clock')}</div><div class="lbl">Devoluções atrasadas</div><div class="val">${late.length}</div><div class="sub">${open.length} saídas em aberto</div></div>
         <div class="kpi acc"><div class="ico">${ic('money')}</div><div class="lbl">Patrimônio</div><div class="val" style="font-size:21px;padding-top:8px">${money(total)}</div><div class="sub">valor de reposição</div></div>
       </div>
@@ -549,6 +552,7 @@ function openEquip(id) {
       </div>
       <div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">${pill(e.status)}<span class="muted" style="font-size:12.5px">· ${uses} uso(s) registrado(s)</span></div>
+        ${(db.divergencias || []).filter(d => d.eqId === id && d.status === 'aberta').map(d => `<div class="card" data-hgo="#/divergencias" style="cursor:pointer;padding:12px 14px;margin-bottom:12px;border-color:rgba(255,84,104,.4);background:rgba(255,84,104,.06)"><b style="color:var(--bad)">${esc(d.numero)} · ${CONDICOES[d.tipo] || esc(d.tipo)}</b> — ${esc(d.descricao || '')} <span class="muted">(${fDate(d.data)})</span></div>`).join('')}
         ${openMov ? `<div class="card" style="padding:12px 14px;margin-bottom:16px;border-color:rgba(255,176,32,.35);background:rgba(255,176,32,.05)"><b>Fora com ${esc(openMov.responsavel)}</b> — ${esc(openMov.projeto)} <span class="muted">(${esc(openMov.numero)}, retorno ${fDate(openMov.previsaoRetorno)})</span></div>` : ''}
         <dl class="dl">
           <dt>Categoria</dt><dd>${esc(e.categoria || '—')}</dd>
@@ -565,12 +569,14 @@ function openEquip(id) {
     foot: `<button class="btn danger" data-a="del" style="margin-right:auto">${ic('trash')}Excluir</button>
       <select class="input" data-a="status" style="width:auto">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${e.status === k ? 'selected' : ''} ${k === 'em_uso' && e.status !== 'em_uso' ? 'disabled' : ''}>${v}</option>`).join('')}</select>
       <button class="btn" data-a="dup">${ic('copy')}Duplicar</button>
+      <button class="btn" data-a="div">${ic('alert')}Divergência</button>
       <button class="btn" data-a="lbl">${ic('tag')}Etiqueta</button>
       <button class="btn primary" data-a="edit">${ic('edit')}Editar</button>`,
     onMount(el, api) {
       el.querySelector('[data-a=edit]').onclick = () => { api.close(); editEquip(id); };
       el.querySelector('[data-a=dup]').onclick = () => { api.close(); editEquip(null, e); };
       el.querySelector('[data-a=lbl]').onclick = () => { api.close(); ui.lblItems = [id]; go('#/etiquetas'); };
+      el.querySelector('[data-a=div]').onclick = () => { api.close(); newDivManual(id); };
       el.querySelector('[data-a=status]').onchange = ev => {
         const v = ev.target.value;
         if (e.status === 'em_uso') { toast('Item está em uso — registre a entrada primeiro', 'warn'); ev.target.value = e.status; return; }
@@ -862,7 +868,7 @@ route(/^#\/entrada\/([\w]+)$/, {
             <div class="field"><label>Data/hora da entrada</label><input class="input" type="datetime-local" data-r="data" value="${esc(r.data)}"></div>
             <div class="field"><label>Observações</label><textarea class="input" data-r="obs" rows="3">${esc(r.obs)}</textarea></div>
           </div>
-          <p class="muted" style="font-size:12.5px;margin:14px 0 0">Itens marcados "Com avaria" voltam ao catálogo com status <b>Manutenção</b>. Itens não marcados continuam pendentes nesta saída.</p>
+          <p class="muted" style="font-size:12.5px;margin:14px 0 0">Itens com avaria, faltando acessório ou extraviados geram uma <b>divergência</b>. Ao confirmar, você escolhe se cada um fica <b>bloqueado</b> para novas saídas. Itens não marcados continuam pendentes nesta saída.</p>
         </div>
       </div>`;
   },
@@ -899,21 +905,180 @@ route(/^#\/entrada\/([\w]+)$/, {
       if (!chosen.length) return toast('Marque ao menos um item devolvido', 'err');
       const missingObs = chosen.find(([, s]) => s.cond && s.cond !== 'ok' && !String(s.obs || '').trim());
       if (missingObs) return toast('Descreva a avaria / o item faltante', 'err');
+      const divs = chosen.filter(([, s]) => s.cond && s.cond !== 'ok');
+      if (!divs.length) return finish(chosen, {});
+      modal({
+        title: `${divs.length} divergência(s) nesta devolução`,
+        body: `<p class="muted" style="margin:0 0 16px">Estes itens voltaram com problema. Uma divergência será aberta para cada um. <b style="color:var(--text)">Deseja bloquear o equipamento para novas saídas</b> até resolver?</p>
+          ${divs.map(([idx, s]) => { const it = m.itens[idx]; const def = s.cond !== 'incompleto'; return `<div class="ret-item" style="grid-template-columns:44px 1fr auto">${photo(eqById(it.eqId) || it, 'thumb')}<div style="min-width:0"><b>${esc(it.nome)}</b><div style="font-size:12.5px"><span class="mono" style="color:var(--accent)">${esc(it.codigo)}</span> · <span style="color:var(--bad)">${CONDICOES[s.cond]}</span> — <span class="muted">${esc(s.obs)}</span></div></div><div class="opt ${def ? 'on' : ''}" data-blk="${idx}"><span class="switch"></span><span style="white-space:nowrap">Bloquear saída</span></div></div>`; }).join('')}`,
+        foot: `<button class="btn" data-c>Voltar</button><button class="btn primary" data-ok>${ic('check')}Confirmar entrada</button>`,
+        onMount(el, api) {
+          el.querySelectorAll('[data-blk]').forEach(o => o.onclick = () => o.classList.toggle('on'));
+          el.querySelector('[data-c]').onclick = api.close;
+          el.querySelector('[data-ok]').onclick = () => {
+            const block = {}; el.querySelectorAll('[data-blk]').forEach(o => { block[o.dataset.blk] = o.classList.contains('on'); });
+            api.close(); finish(chosen, block);
+          };
+        }
+      });
+    };
+    const finish = (chosen, block) => {
       const data = fromInput(r.data) || new Date().toISOString();
       const ret = { id: uid(), numero: `E-${pad(db.settings.seqEntrada++)}`, data, devolvidoPor: r.devolvidoPor.trim(), recebidoPor: r.recebidoPor.trim(), obs: r.obs.trim(), itens: [] };
+      let nDiv = 0;
       chosen.forEach(([idx, s]) => {
         const it = m.itens[idx]; const cond = s.cond || 'ok';
         it.retornado = true; it.dataRetorno = data; it.condicao = cond; it.obsRetorno = s.obs || ''; it.retornoId = ret.id;
-        ret.itens.push({ eqId: it.eqId, codigo: it.codigo, nome: it.nome, serie: it.serie, valor: it.valor, condicao: cond, obs: s.obs || '' });
+        const ri = { eqId: it.eqId, codigo: it.codigo, nome: it.nome, serie: it.serie, valor: it.valor, condicao: cond, obs: s.obs || '' };
         const e = eqById(it.eqId);
-        if (e) { e.status = cond === 'avaria' ? 'manutencao' : 'disponivel'; if (cond !== 'ok') eqLog(e, `${CONDICOES[cond]} na devolução ${ret.numero}: ${s.obs || ''}`); }
+        if (cond !== 'ok') {
+          const bloq = !!block[idx];
+          const d = createDiv({ eq: e || it, tipo: cond, descricao: s.obs || '', m, ret, bloqueado: bloq, data });
+          ri.divId = d.id; ri.divNumero = d.numero; nDiv++;
+          if (e) e.status = bloq ? 'bloqueado' : 'disponivel';
+        } else if (e) e.status = 'disponivel';
+        ret.itens.push(ri);
       });
       (m.retornos = m.retornos || []).push(ret);
       if (r.recebidoPor) db.settings.operador = r.recebidoPor;
       ui.ret = null; commit();
-      toast(`Entrada ${ret.numero} registrada`);
+      toast(`Entrada ${ret.numero} registrada${nDiv ? ` · ${nDiv} divergência(s) aberta(s)` : ''}`, nDiv ? 'warn' : 'ok');
       go(`#/doc/entrada/${m.id}/${ret.id}`);
     };
+  }
+});
+
+// ============================================================
+// DIVERGÊNCIAS
+// ============================================================
+function createDiv({ eq, tipo, descricao, m, ret, bloqueado, data }) {
+  db.divergencias = db.divergencias || [];
+  const d = {
+    id: uid(), numero: `D-${pad(db.settings.seqDiv++)}`, eqId: eq.id || eq.eqId, codigo: eq.codigo, nome: eq.nome, tipo, descricao,
+    movId: m ? m.id : null, movNumero: m ? m.numero : '', retId: ret ? ret.id : null, retNumero: ret ? ret.numero : '',
+    projeto: m ? m.projeto : '', responsavel: m ? m.responsavel : '', data: data || new Date().toISOString(),
+    registradoPor: db.settings.operador || '', bloqueado: !!bloqueado, status: 'aberta', historico: []
+  };
+  db.divergencias.push(d);
+  const e = eqById(d.eqId);
+  if (e) eqLog(e, `Divergência ${d.numero} aberta: ${CONDICOES[tipo] || tipo}${descricao ? ' — ' + descricao : ''}${bloqueado ? ' (bloqueado para saídas)' : ''}`);
+  return d;
+}
+function newDivManual(eqId) {
+  const e = eqById(eqId); if (!e) return;
+  modal({
+    title: `Registrar divergência · <span class="mono" style="color:var(--accent)">${esc(e.codigo)}</span>`, size: 'sm',
+    body: `<div class="grid2" style="grid-template-columns:1fr">
+      <div class="field"><label>Tipo</label><select class="input" id="dv_tipo">${Object.entries(CONDICOES).filter(([k]) => k !== 'ok').map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+      <div class="field"><label>Descrição <span class="req">*</span></label><textarea class="input" id="dv_desc" rows="3" placeholder="O que aconteceu?"></textarea></div>
+      <div class="opt on" id="dv_blk"><span class="switch"></span>Bloquear o equipamento para novas saídas</div></div>`,
+    foot: `<button class="btn" data-c>Cancelar</button><button class="btn primary" data-ok>${ic('check')}Registrar</button>`,
+    onMount(el, api) {
+      el.querySelector('#dv_blk').onclick = ev => ev.currentTarget.classList.toggle('on');
+      el.querySelector('[data-c]').onclick = api.close;
+      el.querySelector('[data-ok]').onclick = () => {
+        const desc = el.querySelector('#dv_desc').value.trim();
+        if (!desc) return toast('Descreva a divergência', 'err');
+        const bloq = el.querySelector('#dv_blk').classList.contains('on');
+        const d = createDiv({ eq: e, tipo: el.querySelector('#dv_tipo').value, descricao: desc, bloqueado: bloq });
+        if (bloq && e.status !== 'em_uso') e.status = 'bloqueado';
+        commit(); api.close(); toast(`Divergência ${d.numero} registrada`); refreshView();
+      };
+    }
+  });
+}
+function openDiv(id) {
+  const d = db.divergencias.find(x => x.id === id); if (!d) return;
+  const e = eqById(d.eqId);
+  const resolved = d.status === 'resolvida';
+  modal({
+    title: `<span class="mono" style="color:var(--accent);margin-right:10px">${esc(d.numero)}</span>${esc(d.nome)}`,
+    body: `<div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">${pill(d.status === 'aberta' ? 'atrasada' : 'fechada', { atrasada: 'Aberta', fechada: 'Resolvida' })}<span class="pill ${d.tipo === 'incompleto' ? 'em_uso' : 'atrasada'}">${CONDICOES[d.tipo] || esc(d.tipo)}</span>${e ? pill(e.status) : ''}</div>
+      <dl class="dl">
+        <dt>Equipamento</dt><dd><span class="mono" style="color:var(--accent)">${esc(d.codigo)}</span> · ${esc(d.nome)}</dd>
+        <dt>Descrição</dt><dd style="white-space:pre-line">${esc(d.descricao || '—')}</dd>
+        <dt>Registrada em</dt><dd>${fDT(d.data)}${d.registradoPor ? ' · por ' + esc(d.registradoPor) : ''}</dd>
+        ${d.movNumero ? `<dt>Origem</dt><dd><a href="#/doc/saida/${d.movId}" data-close style="color:var(--accent)">${esc(d.movNumero)}</a>${d.retNumero ? ` → <a href="#/doc/entrada/${d.movId}/${d.retId}" data-close style="color:var(--accent)">${esc(d.retNumero)}</a>` : ''} · ${esc(d.projeto)}</dd><dt>Responsável</dt><dd>${esc(d.responsavel)}</dd>` : ''}
+        <dt>Bloqueio</dt><dd>${d.bloqueado ? 'Equipamento bloqueado para saídas' : 'Equipamento liberado para saídas'}</dd>
+        ${resolved ? `<dt>Resolução</dt><dd style="white-space:pre-line">${esc(d.resolucao || '—')}</dd><dt>Resolvida em</dt><dd>${fDT(d.resolvidoEm)}${d.resolvidoPor ? ' · por ' + esc(d.resolvidoPor) : ''}</dd>` : ''}
+      </dl>
+      ${resolved ? '' : `<div class="card" style="margin-top:18px;background:var(--bg2)"><h3>Resolver divergência</h3>
+        <div class="field"><label>O que foi feito?</label><textarea class="input" id="dv_res" rows="3" placeholder="Ex.: reparado na assistência, acessório reposto pelo cliente, cobrado no orçamento…"></textarea></div>
+        <div class="field" style="margin-top:12px"><label>Situação do equipamento após resolver</label><select class="input" id="dv_st">
+          <option value="disponivel">Disponível para saídas</option><option value="manutencao">Continua em manutenção</option><option value="baixado">Dar baixa (perdido / sem conserto)</option></select></div></div>`}`,
+    foot: resolved
+      ? `<button class="btn" data-reopen>${ic('refresh')}Reabrir</button><button class="btn primary" data-c>Fechar</button>`
+      : `<button class="btn" data-tblk style="margin-right:auto">${d.bloqueado ? 'Liberar sem resolver' : 'Bloquear saídas'}</button><button class="btn" data-c>Fechar</button><button class="btn primary" data-res>${ic('check')}Marcar como resolvida</button>`,
+    onMount(el, api) {
+      el.querySelector('[data-c]').onclick = api.close;
+      el.querySelectorAll('[data-close]').forEach(x => x.addEventListener('click', () => api.close()));
+      const tb = el.querySelector('[data-tblk]');
+      if (tb) tb.onclick = () => {
+        d.bloqueado = !d.bloqueado;
+        if (e && e.status !== 'em_uso') e.status = d.bloqueado ? 'bloqueado' : 'disponivel';
+        if (e) eqLog(e, `${d.numero}: ${d.bloqueado ? 'bloqueado' : 'liberado'} para saídas`);
+        commit(); api.close(); openDiv(id); refreshView();
+      };
+      const rs = el.querySelector('[data-res]');
+      if (rs) rs.onclick = () => {
+        const txt = el.querySelector('#dv_res').value.trim();
+        if (!txt) return toast('Descreva o que foi feito', 'err');
+        const st = el.querySelector('#dv_st').value;
+        Object.assign(d, { status: 'resolvida', resolucao: txt, resolvidoEm: new Date().toISOString(), resolvidoPor: db.settings.operador || '', bloqueado: false });
+        const others = openDivs().some(x => x.eqId === d.eqId && x.bloqueado);
+        if (e && e.status !== 'em_uso') e.status = others && st === 'disponivel' ? 'bloqueado' : st;
+        if (e) eqLog(e, `Divergência ${d.numero} resolvida: ${txt} → ${STATUS[e.status]}`);
+        commit(); api.close(); toast(`${d.numero} resolvida`); refreshView();
+      };
+      const ro = el.querySelector('[data-reopen]');
+      if (ro) ro.onclick = () => { d.status = 'aberta'; if (e) eqLog(e, `Divergência ${d.numero} reaberta`); commit(); api.close(); openDiv(id); refreshView(); };
+    }
+  });
+}
+route(/^#\/divergencias$/, {
+  crumbs: () => crumb('Divergências'),
+  render() {
+    ui.divTab = ui.divTab || 'abertas';
+    const all = db.divergencias || [];
+    const n = { abertas: openDivs().length, resolvidas: all.filter(d => d.status === 'resolvida').length, todas: all.length };
+    return `
+      <div class="page-head"><div><h1>Divergências</h1><p>Itens que voltaram com avaria, faltando acessório ou não voltaram.</p></div>
+        <div class="actions"><button class="btn" id="divExp">${ic('download')}Exportar planilha</button></div></div>
+      <div class="tabs">${[['abertas', 'Abertas'], ['resolvidas', 'Resolvidas'], ['todas', 'Todas']].map(([k, l]) => `<button data-t="${k}" class="${ui.divTab === k ? 'on' : ''}">${l}<span class="n">${n[k]}</span></button>`).join('')}
+        <div style="margin-left:auto;padding-bottom:6px" class="toolbar"><div class="search" style="min-width:280px">${ic('search')}<input class="input" id="divQ" placeholder="Código, equipamento, produção, responsável…" value="${esc(ui.divQ || '')}"></div></div></div>
+      <div class="card" style="padding:6px 8px" id="divList"></div>
+      <p class="muted" style="font-size:12.5px;margin-top:14px">Para registrar uma divergência fora de uma devolução, abra o equipamento no Catálogo e clique em <b>Divergência</b>.</p>`;
+  },
+  mount() {
+    const draw = () => {
+      let list = db.divergencias || [];
+      if (ui.divTab === 'abertas') list = list.filter(d => d.status === 'aberta');
+      if (ui.divTab === 'resolvidas') list = list.filter(d => d.status === 'resolvida');
+      const q = norm(ui.divQ || '');
+      if (q) list = list.filter(d => norm([d.numero, d.codigo, d.nome, d.projeto, d.responsavel, d.descricao, d.movNumero, d.retNumero].join(' ')).includes(q));
+      list = [...list].sort((a, b) => new Date(b.data) - new Date(a.data));
+      $('#divList').innerHTML = list.length ? `<table class="table"><thead><tr><th>Nº</th><th>Equipamento</th><th>Tipo</th><th>Descrição</th><th>Origem</th><th>Data</th><th>Situação</th></tr></thead><tbody>
+        ${list.map(d => { const e = eqById(d.eqId); return `<tr class="click" data-div="${d.id}"><td class="mono" style="color:var(--accent);font-weight:600">${esc(d.numero)}</td>
+          <td><div class="cell-eq">${photo(e || d, 'thumb')}<div><b>${esc(d.nome)}</b><small class="mono">${esc(d.codigo)}</small></div></div></td>
+          <td><span class="pill ${d.tipo === 'incompleto' ? 'em_uso' : 'atrasada'}">${CONDICOES[d.tipo] || esc(d.tipo)}</span></td>
+          <td style="max-width:280px">${esc(d.descricao || '')}</td>
+          <td>${d.movNumero ? `<b>${esc(d.movNumero)}</b>${d.retNumero ? ' → ' + esc(d.retNumero) : ''}<div class="muted" style="font-size:12px">${esc(d.responsavel)}</div>` : '<span class="muted">Manual</span>'}</td>
+          <td>${fDate(d.data)}</td>
+          <td>${d.status === 'aberta' ? `<span class="pill atrasada">Aberta</span>${d.bloqueado ? '<div class="muted" style="font-size:12px;margin-top:4px">🔒 bloqueado</div>' : ''}` : `<span class="pill fechada">Resolvida</span>`}</td></tr>`; }).join('')}
+      </tbody></table>` : `<div class="empty">${ic('check')}<h4>${ui.divTab === 'abertas' ? 'Nenhuma divergência aberta' : 'Nada por aqui'}</h4>${ui.divTab === 'abertas' ? 'Todos os equipamentos voltaram certinhos.' : ''}</div>`;
+    };
+    $('#divList').addEventListener('click', e => { const r = e.target.closest('[data-div]'); if (r) openDiv(r.dataset.div); });
+    $$('.tabs [data-t]').forEach(b => b.onclick = () => { ui.divTab = b.dataset.t; $$('.tabs [data-t]').forEach(x => x.classList.toggle('on', x === b)); draw(); });
+    $('#divQ').addEventListener('input', e => { ui.divQ = e.target.value; draw(); });
+    $('#divExp').onclick = () => {
+      const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const head = ['Nº', 'Código', 'Equipamento', 'Tipo', 'Descrição', 'Saída', 'Entrada', 'Produção', 'Responsável', 'Data', 'Situação', 'Bloqueado', 'Resolução', 'Resolvida em'];
+      const rows = (db.divergencias || []).map(d => [d.numero, d.codigo, d.nome, CONDICOES[d.tipo], d.descricao, d.movNumero, d.retNumero, d.projeto, d.responsavel, fDT(d.data), DIV_STATUS[d.status], d.bloqueado ? 'Sim' : 'Não', d.resolucao, d.resolvidoEm ? fDT(d.resolvidoEm) : ''].map(q).join(';'));
+      download(`divergencias-${new Date().toISOString().slice(0, 10)}.csv`, '\ufeff' + [head.map(q).join(';'), ...rows].join('\r\n'), 'text/csv;charset=utf-8');
+      toast('Planilha exportada');
+    };
+    current.refresh = () => router();
+    draw();
   }
 });
 
@@ -960,7 +1125,7 @@ function docEntrada(m, r) {
       <div><span>Devolvido por</span><b>${esc(r.devolvidoPor || m.responsavel)}</b></div><div><span>Recebido por</span><b>${esc(r.recebidoPor || '—')}</b></div><div><span>Data da devolução</span><b>${fDT(r.data)}</b></div>
     </div>
     <table><thead><tr><th style="width:7mm">#</th><th style="width:22mm">Código</th><th>Equipamento</th><th style="width:26mm">Nº série</th><th style="width:26mm">Condição</th><th style="width:48mm">Observação</th></tr></thead><tbody>
-      ${r.itens.map((i, n) => `<tr><td>${n + 1}</td><td><b>${esc(i.codigo)}</b></td><td><b>${esc(i.nome)}</b></td><td>${esc(i.serie || '—')}</td><td><span class="cond ${i.condicao !== 'ok' ? 'bad' : ''}">${CONDICOES[i.condicao] || 'OK'}</span></td><td class="iobs">${esc(i.obs || '')}</td></tr>`).join('')}
+      ${r.itens.map((i, n) => `<tr><td>${n + 1}</td><td><b>${esc(i.codigo)}</b></td><td><b>${esc(i.nome)}</b></td><td>${esc(i.serie || '—')}</td><td><span class="cond ${i.condicao !== 'ok' ? 'bad' : ''}">${CONDICOES[i.condicao] || 'OK'}</span></td><td class="iobs">${esc(i.obs || '')}${i.divNumero ? `<br><b style="color:#c00">Divergência ${esc(i.divNumero)}</b>` : ''}</td></tr>`).join('')}
     </tbody></table>
     <div class="tot"><span>${r.itens.length} ${r.itens.length === 1 ? 'item devolvido' : 'itens devolvidos'}</span></div>
     ${pend.length ? `<div class="pend"><b>Itens ainda pendentes nesta saída (${pend.length}):</b> ${pend.map(i => `${esc(i.codigo)} – ${esc(i.nome)}`).join('; ')}</div>` : `<div class="obs" style="color:#1a9e5a;font-weight:700">✔ Todos os itens da saída ${esc(m.numero)} foram devolvidos.</div>`}
@@ -1224,13 +1389,13 @@ route(/^#\/config$/, {
         const data = JSON.parse(await f.text());
         if (!data.settings || !Array.isArray(data.equipamentos)) throw new Error('arquivo inválido');
         if (!await confirmBox('Restaurar backup', `Substituir os dados atuais por <b>${data.equipamentos.length}</b> equipamentos e <b>${(data.movimentacoes || []).length}</b> movimentações do backup?`, 'Restaurar')) return;
-        db = data; db.movimentacoes = db.movimentacoes || []; db.settings = { ...DEFAULT_SETTINGS, ...db.settings };
+        db = data; db.movimentacoes = db.movimentacoes || []; db.divergencias = db.divergencias || []; db.settings = { ...DEFAULT_SETTINGS, ...db.settings };
         await commit(); applyBrand(); router(); toast('Backup restaurado');
       } catch (err) { toast('Não foi possível ler o backup: ' + err.message, 'err'); }
     };
     $('#wipe').onclick = async () => {
       if (!await confirmBox('Apagar tudo', 'Isso remove <b>todos</b> os equipamentos e movimentações. Exporte um backup antes. Continuar?', 'Apagar tudo')) return;
-      db.equipamentos = []; db.movimentacoes = []; s.seqEquip = s.seqSaida = s.seqEntrada = 1; commit(); router(); toast('Dados apagados');
+      db.equipamentos = []; db.movimentacoes = []; db.divergencias = []; s.seqEquip = s.seqSaida = s.seqEntrada = s.seqDiv = 1; commit(); router(); toast('Dados apagados');
     };
     const d2 = $('#demo2'); if (d2) d2.onclick = loadDemo;
     if (Store.desktop) {
@@ -1339,7 +1504,10 @@ async function loadDemo() {
     r1.itens.push({ eqId: it.eqId, codigo: it.codigo, nome: it.nome, serie: it.serie, valor: it.valor, condicao: cond, obs });
   });
   m1.retornos.push(r1);
-  E(10).status = 'manutencao'; E(10).log.push({ t: r1.data, tipo: 'misc', txt: 'Com avaria na devolução E-0001: Ventoinha fazendo ruído alto' });
+  db.divergencias = []; db.settings.seqDiv = 1;
+  const d1 = createDiv({ eq: E(10), tipo: 'avaria', descricao: 'Ventoinha fazendo ruído alto', m: m1, ret: r1, bloqueado: true, data: r1.data });
+  r1.itens[4].divId = d1.id; r1.itens[4].divNumero = d1.numero;
+  E(10).status = 'bloqueado';
   // m2: parcial e atrasada
   const r2 = { id: uid(), numero: 'E-0002', data: D(-1, 21), devolvidoPor: 'Rafael Nunes', recebidoPor: 'Diego Almeida', obs: 'Drone e gimbal ficaram com a equipe para diária extra.', itens: [] };
   m2.itens.forEach((it, i) => {
