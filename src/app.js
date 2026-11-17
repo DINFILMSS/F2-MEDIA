@@ -63,6 +63,7 @@ const P = {
   folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
   back: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
+  pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
   user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   sparkle: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>',
   github: '<path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>',
@@ -93,13 +94,13 @@ const OLD_TERMO_END = 'ressarcimento do valor de reposição indicado neste term
 
 const DEFAULT_SETTINGS = {
   empresa: 'F2 Media', subtitulo: 'Controle de equipamentos', cnpj: '', endereco: '', telefone: '', email: '', site: '',
-  logo: 'assets/logo.png', accent: '#00b2ee', brandV: 2, prefixo: 'F2', seqEquip: 1, seqSaida: 1, seqEntrada: 1, seqDiv: 1,
+  logo: 'assets/logo.png', accent: '#00b2ee', brandV: 2, prefixo: 'F2', seqEquip: 1, seqSaida: 1, seqEntrada: 1, seqDiv: 1, seqManut: 1,
   categorias: ['Câmeras', 'Lentes', 'Iluminação', 'Áudio', 'Grip & Maquinária', 'Monitores', 'Baterias & Energia', 'Cabos & Conexões', 'Armazenamento', 'Tripés & Estabilizadores', 'Drones', 'Acessórios'],
   termo: DEFAULT_TERMO, operador: '',
   label: { model: 't50x30', qr: true, barcode: false, logo: true, nome: true, serie: true, prop: true, copies: 1 }
 };
 
-let db = { settings: { ...DEFAULT_SETTINGS }, equipamentos: [], movimentacoes: [], divergencias: [] };
+let db = { settings: { ...DEFAULT_SETTINGS }, equipamentos: [], movimentacoes: [], divergencias: [], manutencoes: [] };
 let saving = Promise.resolve();
 
 async function loadDB() {
@@ -107,7 +108,7 @@ async function loadDB() {
   if (data && data.settings) {
     db = data;
     db.settings = { ...DEFAULT_SETTINGS, ...data.settings, label: { ...DEFAULT_SETTINGS.label, ...(data.settings.label || {}) } };
-    db.equipamentos = db.equipamentos || []; db.movimentacoes = db.movimentacoes || []; db.divergencias = db.divergencias || [];
+    db.equipamentos = db.equipamentos || []; db.movimentacoes = db.movimentacoes || []; db.divergencias = db.divergencias || []; db.manutencoes = db.manutencoes || [];
     if ((data.settings.brandV || 0) < 2) {
       Object.assign(db.settings, { brandV: 2, logo: data.settings.logo || 'assets/logo.png', accent: data.settings.logo ? db.settings.accent : '#00b2ee' });
       if (!data.settings.empresa || data.settings.empresa === 'F2 Produtora') db.settings.empresa = 'F2 Media';
@@ -134,6 +135,9 @@ function movState(m) {
   return pend < m.itens.length ? 'parcial' : 'aberta';
 }
 const openDivs = () => (db.divergencias || []).filter(d => d.status === 'aberta');
+const openManuts = () => (db.manutencoes || []).filter(x => x.status === 'aberta');
+const manutLate = x => x.previsao && new Date(x.previsao + 'T23:59') < new Date();
+const manutOf = eqId => openManuts().find(x => x.eqId === eqId);
 const openMovs = () => db.movimentacoes.filter(m => !m.cancelada && m.itens.some(i => !i.retornado));
 const lateMovs = () => openMovs().filter(m => movState(m) === 'atrasada');
 function eqLog(eq, txt, tipo = 'misc') { (eq.log = eq.log || []).push({ t: new Date().toISOString(), tipo, txt }); }
@@ -247,6 +251,7 @@ const NAV = [
   { href: '#/saida/nova', icon: 'out', label: 'Nova saída' },
   { href: '#/movimentacoes', icon: 'swap', label: 'Saídas & Entradas', badge: () => { const l = lateMovs().length; return l ? { v: l, cls: '' } : (openMovs().length ? { v: openMovs().length, cls: 'warn' } : ''); } },
   { href: '#/divergencias', icon: 'alert', label: 'Divergências', badge: () => { const n = openDivs().length; return n ? { v: n, cls: '' } : ''; } },
+  { href: '#/manutencao', icon: 'wrench', label: 'Manutenção', badge: () => { const o = openManuts(); if (!o.length) return ''; return { v: o.length, cls: o.some(manutLate) ? '' : 'warn' }; } },
   { sec: 'Ferramentas' },
   { href: '#/etiquetas', icon: 'tag', label: 'Etiquetas' },
   { href: '#/config', icon: 'settings', label: 'Configurações' }
@@ -407,6 +412,7 @@ route(/^#\/?$/, {
           <div class="card"><h3>Saídas em aberto <span class="muted">${upcoming.length}</span></h3>${upcoming.length ? movTable(upcoming) : `<div class="empty" style="padding:26px">${ic('check')}<h4>Tudo em casa</h4>Nenhum equipamento fora no momento.</div>`}</div>
         </div>
         <div>
+          ${openManuts().length ? `<div class="card"><h3><span style="display:flex;gap:8px;align-items:center">${ic('wrench')}Em manutenção</span><a class="muted" style="cursor:pointer;font-weight:500;font-size:12.5px" data-go="#/manutencao">ver tudo</a></h3>${openManuts().slice(0, 5).map(x => `<div class="pick" style="padding:8px 0;border-bottom:1px solid var(--line)" data-go="#/manutencao">${photo(eqById(x.eqId) || x, 'thumb')}<div class="grow"><b>${esc(x.nome)}</b><small>${ic('pin', 'mini')} ${esc(x.local)}</small></div><span style="font-size:12px;color:${manutLate(x) ? 'var(--bad)' : 'var(--muted)'};white-space:nowrap">${x.previsao ? 'volta ' + relDays(x.previsao + 'T12:00') : ''}</span></div>`).join('')}</div>` : ''}
           <div class="card"><h3>Por categoria</h3><div class="bars">${catArr.map(([c, n]) => `<div class="bar-row"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c)}</span><div class="track"><div class="fill" style="width:${n / maxC * 100}%"></div></div><span>${n}</span></div>`).join('')}</div></div>
           <div class="card"><h3>Atividade recente</h3>${events.length ? `<div class="timeline">${events.slice(0, 7).map(ev => `<div class="tl" style="cursor:pointer" data-go="${ev.go}"><div class="b ${ev.k}">${ic(ev.k)}</div><div>${ev.txt}<small>${ev.sub} · ${fDT(ev.t)}</small></div></div>`).join('')}</div>` : '<p class="muted" style="margin:0">Sem movimentações ainda.</p>'}</div>
         </div>
@@ -553,6 +559,7 @@ function openEquip(id) {
       <div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">${pill(e.status)}<span class="muted" style="font-size:12.5px">· ${uses} uso(s) registrado(s)</span></div>
         ${(db.divergencias || []).filter(d => d.eqId === id && d.status === 'aberta').map(d => `<div class="card" data-hgo="#/divergencias" style="cursor:pointer;padding:12px 14px;margin-bottom:12px;border-color:rgba(255,84,104,.4);background:rgba(255,84,104,.06)"><b style="color:var(--bad)">${esc(d.numero)} · ${CONDICOES[d.tipo] || esc(d.tipo)}</b> — ${esc(d.descricao || '')} <span class="muted">(${fDate(d.data)})</span></div>`).join('')}
+        ${(mt => mt ? `<div class="card" data-hgo="#/manutencao" style="cursor:pointer;padding:12px 14px;margin-bottom:12px;border-color:rgba(77,163,255,.4);background:rgba(77,163,255,.06)"><b style="color:var(--info)">${esc(mt.numero)} · Em manutenção</b> — ${esc(mt.local)} <span class="muted">(desde ${fDate(mt.enviadoEm + 'T12:00')}${mt.previsao ? ', previsão ' + fDate(mt.previsao + 'T12:00') : ''})</span></div>` : '')(manutOf(id))}
         ${openMov ? `<div class="card" style="padding:12px 14px;margin-bottom:16px;border-color:rgba(255,176,32,.35);background:rgba(255,176,32,.05)"><b>Fora com ${esc(openMov.responsavel)}</b> — ${esc(openMov.projeto)} <span class="muted">(${esc(openMov.numero)}, retorno ${fDate(openMov.previsaoRetorno)})</span></div>` : ''}
         <dl class="dl">
           <dt>Categoria</dt><dd>${esc(e.categoria || '—')}</dd>
@@ -570,6 +577,7 @@ function openEquip(id) {
       <select class="input" data-a="status" style="width:auto">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${e.status === k ? 'selected' : ''} ${k === 'em_uso' && e.status !== 'em_uso' ? 'disabled' : ''}>${v}</option>`).join('')}</select>
       <button class="btn" data-a="dup">${ic('copy')}Duplicar</button>
       <button class="btn" data-a="div">${ic('alert')}Divergência</button>
+      ${manutOf(id) ? '' : `<button class="btn" data-a="mnt">${ic('wrench')}Manutenção</button>`}
       <button class="btn" data-a="lbl">${ic('tag')}Etiqueta</button>
       <button class="btn primary" data-a="edit">${ic('edit')}Editar</button>`,
     onMount(el, api) {
@@ -577,9 +585,12 @@ function openEquip(id) {
       el.querySelector('[data-a=dup]').onclick = () => { api.close(); editEquip(null, e); };
       el.querySelector('[data-a=lbl]').onclick = () => { api.close(); ui.lblItems = [id]; go('#/etiquetas'); };
       el.querySelector('[data-a=div]').onclick = () => { api.close(); newDivManual(id); };
+      const mb = el.querySelector('[data-a=mnt]'); if (mb) mb.onclick = () => { api.close(); sendToMaint(id); };
       el.querySelector('[data-a=status]').onchange = ev => {
         const v = ev.target.value;
         if (e.status === 'em_uso') { toast('Item está em uso — registre a entrada primeiro', 'warn'); ev.target.value = e.status; return; }
+        if (v === 'manutencao' && !manutOf(id)) { ev.target.value = e.status; api.close(); sendToMaint(id); return; }
+        if (manutOf(id) && v !== 'manutencao') { ev.target.value = e.status; api.close(); finishMaint(manutOf(id).id); return; }
         eqLog(e, `Status alterado: ${STATUS[e.status]} → ${STATUS[v]}`); e.status = v; commit(); api.close(); openEquip(id); refreshView();
       };
       el.querySelector('[data-a=del]').onclick = async () => {
@@ -670,6 +681,7 @@ function editEquip(id, template) {
           toast(qtd > 1 ? `${qtd} unidades cadastradas` : 'Equipamento cadastrado');
         }
         commit(); api.close(); refreshView();
+        if (e && e.status === 'manutencao' && !manutOf(e.id)) sendToMaint(e.id);
         if (b.dataset.save === 'more') editEquip(null, { ...data, foto: null });
       });
     }
@@ -1005,10 +1017,10 @@ function openDiv(id) {
       ${resolved ? '' : `<div class="card" style="margin-top:18px;background:var(--bg2)"><h3>Resolver divergência</h3>
         <div class="field"><label>O que foi feito?</label><textarea class="input" id="dv_res" rows="3" placeholder="Ex.: reparado na assistência, acessório reposto pelo cliente, cobrado no orçamento…"></textarea></div>
         <div class="field" style="margin-top:12px"><label>Situação do equipamento após resolver</label><select class="input" id="dv_st">
-          <option value="disponivel">Disponível para saídas</option><option value="manutencao">Continua em manutenção</option><option value="baixado">Dar baixa (perdido / sem conserto)</option></select></div></div>`}`,
+          <option value="disponivel">Disponível para saídas</option><option value="manutencao">Enviar / manter em manutenção</option><option value="baixado">Dar baixa (perdido / sem conserto)</option></select></div></div>`}`,
     foot: resolved
       ? `<button class="btn" data-reopen>${ic('refresh')}Reabrir</button><button class="btn primary" data-c>Fechar</button>`
-      : `<button class="btn" data-tblk style="margin-right:auto">${d.bloqueado ? 'Liberar sem resolver' : 'Bloquear saídas'}</button><button class="btn" data-c>Fechar</button><button class="btn primary" data-res>${ic('check')}Marcar como resolvida</button>`,
+      : `${manutOf(d.eqId) ? '' : `<button class="btn" data-tomnt>${ic('wrench')}Enviar p/ manutenção</button>`}<button class="btn" data-tblk style="margin-right:auto">${d.bloqueado ? 'Liberar sem resolver' : 'Bloquear saídas'}</button><button class="btn" data-c>Fechar</button><button class="btn primary" data-res>${ic('check')}Marcar como resolvida</button>`,
     onMount(el, api) {
       el.querySelector('[data-c]').onclick = api.close;
       el.querySelectorAll('[data-close]').forEach(x => x.addEventListener('click', () => api.close()));
@@ -1019,6 +1031,8 @@ function openDiv(id) {
         if (e) eqLog(e, `${d.numero}: ${d.bloqueado ? 'bloqueado' : 'liberado'} para saídas`);
         commit(); api.close(); openDiv(id); refreshView();
       };
+      const tm = el.querySelector('[data-tomnt]');
+      if (tm) tm.onclick = () => { api.close(); sendToMaint(d.eqId, { motivo: `${CONDICOES[d.tipo] || ''}: ${d.descricao || ''}`, divId: d.id, divNumero: d.numero }); };
       const rs = el.querySelector('[data-res]');
       if (rs) rs.onclick = () => {
         const txt = el.querySelector('#dv_res').value.trim();
@@ -1029,6 +1043,7 @@ function openDiv(id) {
         if (e && e.status !== 'em_uso') e.status = others && st === 'disponivel' ? 'bloqueado' : st;
         if (e) eqLog(e, `Divergência ${d.numero} resolvida: ${txt} → ${STATUS[e.status]}`);
         commit(); api.close(); toast(`${d.numero} resolvida`); refreshView();
+        if (e && e.status === 'manutencao' && !manutOf(e.id)) sendToMaint(e.id, { motivo: `${CONDICOES[d.tipo] || ''}: ${d.descricao || ''}`, divId: d.id, divNumero: d.numero });
       };
       const ro = el.querySelector('[data-reopen]');
       if (ro) ro.onclick = () => { d.status = 'aberta'; if (e) eqLog(e, `Divergência ${d.numero} reaberta`); commit(); api.close(); openDiv(id); refreshView(); };
@@ -1075,6 +1090,185 @@ route(/^#\/divergencias$/, {
       const head = ['Nº', 'Código', 'Equipamento', 'Tipo', 'Descrição', 'Saída', 'Entrada', 'Produção', 'Responsável', 'Data', 'Situação', 'Bloqueado', 'Resolução', 'Resolvida em'];
       const rows = (db.divergencias || []).map(d => [d.numero, d.codigo, d.nome, CONDICOES[d.tipo], d.descricao, d.movNumero, d.retNumero, d.projeto, d.responsavel, fDT(d.data), DIV_STATUS[d.status], d.bloqueado ? 'Sim' : 'Não', d.resolucao, d.resolvidoEm ? fDT(d.resolvidoEm) : ''].map(q).join(';'));
       download(`divergencias-${new Date().toISOString().slice(0, 10)}.csv`, '\ufeff' + [head.map(q).join(';'), ...rows].join('\r\n'), 'text/csv;charset=utf-8');
+      toast('Planilha exportada');
+    };
+    current.refresh = () => router();
+    draw();
+  }
+});
+
+// ============================================================
+// MANUTENÇÃO
+// ============================================================
+const today = () => { const x = new Date(); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 10); };
+function sendToMaint(eqId, pre = {}) {
+  const e = eqById(eqId); if (!e) return;
+  if (e.status === 'em_uso') return toast('Item está em uso — registre a entrada primeiro', 'warn');
+  const locais = [...new Set((db.manutencoes || []).map(x => x.local).filter(Boolean))];
+  const last = [...(db.manutencoes || [])].reverse().find(x => x.eqId === eqId);
+  modal({
+    title: `Enviar para manutenção · <span class="mono" style="color:var(--accent)">${esc(e.codigo)}</span> ${esc(e.nome)}`,
+    body: `<div class="grid2">
+      <div class="field span2"><label>Onde está / para onde vai <span class="req">*</span></label><input class="input" id="mt_local" list="dl_loc" value="${esc(last ? last.local : '')}" placeholder="Ex.: Assistência Aputure – Santa Ifigênia, Bancada interna, Com o técnico Marcos…"></div>
+      <div class="field"><label>Contato / técnico</label><input class="input" id="mt_contato" value="${esc(last ? last.contato : '')}"></div>
+      <div class="field"><label>Telefone</label><input class="input" id="mt_tel" value="${esc(last ? last.telefone : '')}"></div>
+      <div class="field span2"><label>Motivo / defeito <span class="req">*</span></label><textarea class="input" id="mt_motivo" rows="3">${esc(pre.motivo || '')}</textarea></div>
+      <div class="field"><label>Nº da OS / protocolo</label><input class="input" id="mt_os"></div>
+      <div class="field"><label>Enviado por</label><input class="input" id="mt_por" value="${esc(db.settings.operador || '')}"></div>
+      <div class="field"><label>Data de envio</label><input class="input" type="date" id="mt_data" value="${today()}"></div>
+      <div class="field"><label>Previsão de retorno</label><input class="input" type="date" id="mt_prev"></div>
+      </div><datalist id="dl_loc">${locais.map(l => `<option value="${esc(l)}">`).join('')}</datalist>`,
+    foot: `<button class="btn" data-c>Cancelar</button><button class="btn primary" data-ok>${ic('wrench')}Enviar para manutenção</button>`,
+    onMount(el, api) {
+      el.querySelector('#mt_local').focus();
+      el.querySelector('[data-c]').onclick = api.close;
+      el.querySelector('[data-ok]').onclick = () => {
+        const v = s => el.querySelector(s).value.trim();
+        if (!v('#mt_local')) return toast('Informe onde o equipamento está', 'err');
+        if (!v('#mt_motivo')) return toast('Informe o motivo', 'err');
+        const x = {
+          id: uid(), numero: `M-${pad(db.settings.seqManut++)}`, eqId, codigo: e.codigo, nome: e.nome,
+          local: v('#mt_local'), contato: v('#mt_contato'), telefone: v('#mt_tel'), motivo: v('#mt_motivo'), os: v('#mt_os'),
+          enviadoPor: v('#mt_por'), enviadoEm: v('#mt_data') || today(), previsao: v('#mt_prev'), statusAnterior: e.status,
+          divId: pre.divId || null, divNumero: pre.divNumero || '', status: 'aberta', atualizacoes: []
+        };
+        (db.manutencoes = db.manutencoes || []).push(x);
+        e.status = 'manutencao';
+        eqLog(e, `Enviado para manutenção ${x.numero}: ${x.local} — ${x.motivo}`);
+        if (v('#mt_por')) db.settings.operador = v('#mt_por');
+        commit(); api.close(); toast(`${e.codigo} enviado para manutenção (${x.numero})`); refreshView();
+      };
+    }
+  });
+}
+function updateMaint(id) {
+  const x = db.manutencoes.find(m => m.id === id); if (!x) return;
+  modal({
+    title: `Atualizar ${esc(x.numero)} · ${esc(x.nome)}`, size: 'sm',
+    body: `<div class="grid2" style="grid-template-columns:1fr">
+      <div class="field"><label>Onde está agora</label><input class="input" id="u_local" value="${esc(x.local)}"></div>
+      <div class="field"><label>Previsão de retorno</label><input class="input" type="date" id="u_prev" value="${esc(x.previsao || '')}"></div>
+      <div class="field"><label>Nº da OS / protocolo</label><input class="input" id="u_os" value="${esc(x.os || '')}"></div>
+      <div class="field"><label>Anotação</label><textarea class="input" id="u_nota" rows="3" placeholder="Ex.: orçamento aprovado, aguardando peça…"></textarea></div></div>`,
+    foot: `<button class="btn" data-c>Cancelar</button><button class="btn primary" data-ok>${ic('check')}Salvar</button>`,
+    onMount(el, api) {
+      el.querySelector('[data-c]').onclick = api.close;
+      el.querySelector('[data-ok]').onclick = () => {
+        const v = s => el.querySelector(s).value.trim();
+        const parts = [];
+        if (v('#u_local') && v('#u_local') !== x.local) { parts.push(`Local: ${x.local} → ${v('#u_local')}`); x.local = v('#u_local'); }
+        if (v('#u_prev') !== (x.previsao || '')) { parts.push(`Nova previsão: ${v('#u_prev') ? fDate(v('#u_prev') + 'T12:00') : '—'}`); x.previsao = v('#u_prev'); }
+        if (v('#u_os') !== (x.os || '')) { parts.push(`OS: ${v('#u_os')}`); x.os = v('#u_os'); }
+        if (v('#u_nota')) parts.push(v('#u_nota'));
+        if (!parts.length) return api.close();
+        x.atualizacoes.push({ t: new Date().toISOString(), por: db.settings.operador || '', txt: parts.join(' · ') });
+        const e = eqById(x.eqId); if (e) eqLog(e, `${x.numero}: ${parts.join(' · ')}`);
+        commit(); api.close(); toast('Manutenção atualizada'); refreshView();
+      };
+    }
+  });
+}
+function finishMaint(id) {
+  const x = db.manutencoes.find(m => m.id === id); if (!x) return;
+  const e = eqById(x.eqId);
+  const divs = openDivs().filter(d => d.eqId === x.eqId);
+  modal({
+    title: `Retorno da manutenção · ${esc(x.numero)}`, size: 'sm',
+    body: `<p class="muted" style="margin:0 0 14px"><b style="color:var(--text)">${esc(x.nome)}</b> <span class="mono">${esc(x.codigo)}</span> — estava em ${esc(x.local)}</p>
+      <div class="grid2" style="grid-template-columns:1fr">
+      <div class="field"><label>O que foi feito? <span class="req">*</span></label><textarea class="input" id="f_res" rows="3" placeholder="Ex.: troca da ventoinha, limpeza do sensor…"></textarea></div>
+      <div class="field"><label>Custo (R$, opcional)</label><input class="input" id="f_custo" inputmode="decimal" placeholder="0,00"></div>
+      <div class="field"><label>Data de retorno</label><input class="input" type="date" id="f_data" value="${today()}"></div>
+      <div class="field"><label>Situação do equipamento</label><select class="input" id="f_st"><option value="disponivel">Disponível para saídas</option><option value="bloqueado">Bloqueado</option><option value="baixado">Dar baixa (sem conserto)</option></select></div>
+      ${divs.length ? `<div class="opt on" id="f_divs"><span class="switch"></span>Resolver também ${divs.map(d => esc(d.numero)).join(', ')}</div>` : ''}</div>`,
+    foot: `<button class="btn" data-c>Cancelar</button><button class="btn primary" data-ok>${ic('check')}Concluir manutenção</button>`,
+    onMount(el, api) {
+      const fd = el.querySelector('#f_divs'); if (fd) fd.onclick = () => fd.classList.toggle('on');
+      el.querySelector('[data-c]').onclick = api.close;
+      el.querySelector('[data-ok]').onclick = () => {
+        const res = el.querySelector('#f_res').value.trim();
+        if (!res) return toast('Descreva o que foi feito', 'err');
+        const st = el.querySelector('#f_st').value;
+        Object.assign(x, { status: 'concluida', resultado: res, custo: parseMoney(el.querySelector('#f_custo').value), concluidoEm: el.querySelector('#f_data').value || today(), concluidoPor: db.settings.operador || '', statusFinal: st });
+        if (fd && fd.classList.contains('on')) divs.forEach(d => Object.assign(d, { status: 'resolvida', resolucao: `Manutenção ${x.numero}: ${res}`, resolvidoEm: new Date().toISOString(), resolvidoPor: db.settings.operador || '', bloqueado: false }));
+        if (e) { e.status = st; eqLog(e, `Voltou da manutenção ${x.numero}: ${res} → ${STATUS[st]}`); }
+        commit(); api.close(); toast(`${x.codigo} voltou da manutenção`); refreshView();
+      };
+    }
+  });
+}
+function maintPicker() {
+  modal({
+    title: 'Enviar equipamento para manutenção', size: 'sm',
+    body: `<div class="scanbox">${ic('search')}<input id="mp_q" placeholder="Código ou nome do equipamento…" autocomplete="off"></div><div class="picker" id="mp_list" style="max-height:360px"></div>`,
+    onMount(el, api) {
+      const q = el.querySelector('#mp_q'), box = el.querySelector('#mp_list');
+      const draw = () => {
+        const t = norm(q.value);
+        const list = db.equipamentos.filter(e => !['em_uso', 'manutencao', 'baixado'].includes(e.status) && (!t || norm([e.codigo, e.nome, e.marca, e.modelo].join(' ')).includes(t))).slice(0, 40);
+        box.innerHTML = list.map(e => `<div class="pick" data-pid="${e.id}">${photo(e, 'thumb')}<div class="grow"><b>${esc(e.nome)}</b><small class="mono">${esc(e.codigo)}</small></div>${pill(e.status)}</div>`).join('') || '<div class="pick off"><small>Nenhum item disponível</small></div>';
+      };
+      box.onclick = ev => { const p = ev.target.closest('[data-pid]'); if (p) { api.close(); sendToMaint(p.dataset.pid); } };
+      q.oninput = draw;
+      q.onkeydown = ev => { if (ev.key === 'Enter') { const ex = eqByCode(q.value); if (ex) { api.close(); sendToMaint(ex.id); } } };
+      q.focus(); draw();
+    }
+  });
+}
+route(/^#\/manutencao$/, {
+  crumbs: () => crumb('Manutenção'),
+  render() {
+    ui.mtTab = ui.mtTab || 'abertas';
+    const all = db.manutencoes || [];
+    const n = { abertas: openManuts().length, atrasadas: openManuts().filter(manutLate).length, concluidas: all.filter(x => x.status === 'concluida').length, todas: all.length };
+    return `
+      <div class="page-head"><div><h1>Manutenção</h1><p>Onde está cada equipamento que saiu para conserto, desde quando e quando volta.</p></div>
+        <div class="actions"><button class="btn" id="mtExp">${ic('download')}Exportar planilha</button><button class="btn primary" id="mtNew">${ic('wrench')}Enviar para manutenção</button></div></div>
+      <div class="tabs">${[['abertas', 'Em manutenção'], ['atrasadas', 'Atrasadas'], ['concluidas', 'Concluídas'], ['todas', 'Todas']].map(([k, l]) => `<button data-t="${k}" class="${ui.mtTab === k ? 'on' : ''}">${l}<span class="n">${n[k]}</span></button>`).join('')}
+        <div style="margin-left:auto;padding-bottom:6px" class="toolbar"><div class="search" style="min-width:280px">${ic('search')}<input class="input" id="mtQ" placeholder="Código, equipamento, local, OS…" value="${esc(ui.mtQ || '')}"></div></div></div>
+      <div id="mtList"></div>`;
+  },
+  mount() {
+    const dias = x => Math.max(0, Math.round((new Date((x.concluidoEm || today()) + 'T12:00') - new Date(x.enviadoEm + 'T12:00')) / 864e5));
+    const draw = () => {
+      let list = db.manutencoes || [];
+      if (ui.mtTab === 'abertas') list = openManuts();
+      if (ui.mtTab === 'atrasadas') list = openManuts().filter(manutLate);
+      if (ui.mtTab === 'concluidas') list = list.filter(x => x.status === 'concluida');
+      const q = norm(ui.mtQ || '');
+      if (q) list = list.filter(x => norm([x.numero, x.codigo, x.nome, x.local, x.contato, x.motivo, x.os].join(' ')).includes(q));
+      list = [...list].sort((a, b) => (a.status === b.status ? 0 : a.status === 'aberta' ? -1 : 1) || String(b.enviadoEm).localeCompare(a.enviadoEm));
+      $('#mtList').innerHTML = list.length ? `<div class="mt-grid">${list.map(x => {
+        const e = eqById(x.eqId), late = x.status === 'aberta' && manutLate(x);
+        return `<div class="card mt-card ${late ? 'late' : ''} ${x.status === 'concluida' ? 'done' : ''}">
+          <div class="mt-top">${photo(e || x, 'thumb')}<div style="min-width:0;flex:1"><div class="mono" style="color:var(--accent);font-size:12px;font-weight:600">${esc(x.codigo)} · ${esc(x.numero)}</div><b class="mt-name" data-eq="${x.eqId}">${esc(x.nome)}</b></div>
+            ${x.status === 'concluida' ? '<span class="pill fechada">Concluída</span>' : late ? '<span class="pill atrasada">Atrasada</span>' : '<span class="pill manutencao">Em manutenção</span>'}</div>
+          <div class="mt-loc">${ic('pin')}<div><b>${esc(x.local)}</b>${x.contato || x.telefone ? `<small>${esc([x.contato, x.telefone].filter(Boolean).join(' · '))}</small>` : ''}</div></div>
+          <div class="mt-motivo">${esc(x.motivo)}</div>
+          <div class="mt-meta">
+            <div><span>Enviado</span>${fDate(x.enviadoEm + 'T12:00')}</div>
+            <div><span>${x.status === 'concluida' ? 'Voltou' : 'Previsão'}</span>${x.status === 'concluida' ? fDate(x.concluidoEm + 'T12:00') : x.previsao ? `${fDate(x.previsao + 'T12:00')}<em style="color:${late ? 'var(--bad)' : 'var(--muted)'}">${relDays(x.previsao + 'T12:00')}</em>` : '—'}</div>
+            <div><span>Tempo</span>${dias(x)} dia(s)</div>
+            ${x.os ? `<div><span>OS</span>${esc(x.os)}</div>` : ''}
+            ${x.divNumero ? `<div><span>Divergência</span>${esc(x.divNumero)}</div>` : ''}
+          </div>
+          ${x.atualizacoes.length ? `<div class="mt-upd">${x.atualizacoes.slice(-2).reverse().map(u => `<div><small>${fDT(u.t)}${u.por ? ' · ' + esc(u.por) : ''}</small>${esc(u.txt)}</div>`).join('')}</div>` : ''}
+          ${x.status === 'concluida' ? `<div class="mt-upd"><div><small>Resultado${x.custo ? ' · ' + money(x.custo) : ''}</small>${esc(x.resultado || '')}</div></div>` : `<div class="actions" style="margin-top:auto;padding-top:12px"><button class="btn sm" data-upd="${x.id}">${ic('edit')}Atualizar</button><button class="btn sm primary" data-fin="${x.id}">${ic('check')}Voltou da manutenção</button></div>`}
+        </div>`; }).join('')}</div>`
+        : `<div class="card"><div class="empty">${ic('wrench')}<h4>${ui.mtTab === 'concluidas' ? 'Nenhuma manutenção concluída' : 'Nenhum equipamento em manutenção'}</h4>Use o botão <b>Enviar para manutenção</b> ou mude o status de um item no Catálogo.</div></div>`;
+    };
+    $('#mtList').addEventListener('click', ev => {
+      const u = ev.target.closest('[data-upd]'), f = ev.target.closest('[data-fin]'), q = ev.target.closest('[data-eq]');
+      if (u) updateMaint(u.dataset.upd); else if (f) finishMaint(f.dataset.fin); else if (q) openEquip(q.dataset.eq);
+    });
+    $$('.tabs [data-t]').forEach(b => b.onclick = () => { ui.mtTab = b.dataset.t; router(); });
+    $('#mtQ').addEventListener('input', e => { ui.mtQ = e.target.value; draw(); });
+    $('#mtNew').onclick = maintPicker;
+    $('#mtExp').onclick = () => {
+      const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const head = ['Nº', 'Código', 'Equipamento', 'Local', 'Contato', 'Telefone', 'Motivo', 'OS', 'Enviado em', 'Previsão', 'Situação', 'Voltou em', 'Resultado', 'Custo'];
+      const rows = (db.manutencoes || []).map(x => [x.numero, x.codigo, x.nome, x.local, x.contato, x.telefone, x.motivo, x.os, fDate(x.enviadoEm + 'T12:00'), x.previsao ? fDate(x.previsao + 'T12:00') : '', x.status === 'aberta' ? 'Em manutenção' : 'Concluída', x.concluidoEm ? fDate(x.concluidoEm + 'T12:00') : '', x.resultado, x.custo ? String(x.custo).replace('.', ',') : ''].map(q).join(';'));
+      download(`manutencoes-${today()}.csv`, '﻿' + [head.map(q).join(';'), ...rows].join('\r\n'), 'text/csv;charset=utf-8');
       toast('Planilha exportada');
     };
     current.refresh = () => router();
@@ -1389,13 +1583,13 @@ route(/^#\/config$/, {
         const data = JSON.parse(await f.text());
         if (!data.settings || !Array.isArray(data.equipamentos)) throw new Error('arquivo inválido');
         if (!await confirmBox('Restaurar backup', `Substituir os dados atuais por <b>${data.equipamentos.length}</b> equipamentos e <b>${(data.movimentacoes || []).length}</b> movimentações do backup?`, 'Restaurar')) return;
-        db = data; db.movimentacoes = db.movimentacoes || []; db.divergencias = db.divergencias || []; db.settings = { ...DEFAULT_SETTINGS, ...db.settings };
+        db = data; db.movimentacoes = db.movimentacoes || []; db.divergencias = db.divergencias || []; db.manutencoes = db.manutencoes || []; db.settings = { ...DEFAULT_SETTINGS, ...db.settings };
         await commit(); applyBrand(); router(); toast('Backup restaurado');
       } catch (err) { toast('Não foi possível ler o backup: ' + err.message, 'err'); }
     };
     $('#wipe').onclick = async () => {
       if (!await confirmBox('Apagar tudo', 'Isso remove <b>todos</b> os equipamentos e movimentações. Exporte um backup antes. Continuar?', 'Apagar tudo')) return;
-      db.equipamentos = []; db.movimentacoes = []; db.divergencias = []; s.seqEquip = s.seqSaida = s.seqEntrada = s.seqDiv = 1; commit(); router(); toast('Dados apagados');
+      db.equipamentos = []; db.movimentacoes = []; db.divergencias = []; db.manutencoes = []; s.seqEquip = s.seqSaida = s.seqEntrada = s.seqDiv = s.seqManut = 1; commit(); router(); toast('Dados apagados');
     };
     const d2 = $('#demo2'); if (d2) d2.onclick = loadDemo;
     if (Store.desktop) {
@@ -1507,7 +1701,13 @@ async function loadDemo() {
   db.divergencias = []; db.settings.seqDiv = 1;
   const d1 = createDiv({ eq: E(10), tipo: 'avaria', descricao: 'Ventoinha fazendo ruído alto', m: m1, ret: r1, bloqueado: true, data: r1.data });
   r1.itens[4].divId = d1.id; r1.itens[4].divNumero = d1.numero;
-  E(10).status = 'bloqueado';
+  db.manutencoes = []; db.settings.seqManut = 1;
+  const dd = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+  db.manutencoes.push({ id: uid(), numero: 'M-0001', eqId: E(10).id, codigo: E(10).codigo, nome: E(10).nome, local: 'Assistência Aputure – Santa Ifigênia, SP', contato: 'Marcos (técnico)', telefone: '(11) 3333-4455', motivo: 'Com avaria: Ventoinha fazendo ruído alto', os: 'OS 18273', enviadoPor: 'Diego Almeida', enviadoEm: dd(-9), previsao: dd(-2), divId: d1.id, divNumero: d1.numero, status: 'aberta', atualizacoes: [{ t: D(-5, 15), por: 'Diego Almeida', txt: 'Orçamento aprovado, aguardando peça' }] });
+  db.manutencoes.push({ id: uid(), numero: 'M-0002', eqId: E(26).id, codigo: E(26).codigo, nome: E(26).nome, local: 'Bancada interna – sala de câmera', contato: 'Rafael', telefone: '', motivo: 'Cartão apresentando erro de leitura intermitente', os: '', enviadoPor: 'Diego Almeida', enviadoEm: dd(-2), previsao: dd(3), status: 'aberta', atualizacoes: [] });
+  db.manutencoes.push({ id: uid(), numero: 'M-0003', eqId: E(19).id, codigo: E(19).codigo, nome: E(19).nome, local: 'Sachtler Brasil – assistência', contato: '', telefone: '', motivo: 'Revisão preventiva do fluido da cabeça', os: 'PR-5521', enviadoPor: 'Diego Almeida', enviadoEm: dd(-40), previsao: dd(-30), status: 'concluida', resultado: 'Revisão completa e troca de fluido', custo: 650, concluidoEm: dd(-31), atualizacoes: [] });
+  E(10).status = 'manutencao'; E(26).status = 'manutencao';
+  db.settings.seqManut = 4;
   // m2: parcial e atrasada
   const r2 = { id: uid(), numero: 'E-0002', data: D(-1, 21), devolvidoPor: 'Rafael Nunes', recebidoPor: 'Diego Almeida', obs: 'Drone e gimbal ficaram com a equipe para diária extra.', itens: [] };
   m2.itens.forEach((it, i) => {

@@ -7,6 +7,7 @@ Sistema desktop para controle de equipamentos da produtora.
 - **Saída** de equipamentos com **termo de retirada e responsabilidade** (imprimir ou salvar em PDF)
 - **Entrada** (devolução) com conferência item a item, registro de avarias e **termo de devolução**. Devoluções parciais são aceitas.
 - **Divergências**: item que volta com avaria, faltando acessório ou que não voltou abre uma divergência. Na devolução o sistema pergunta se o equipamento deve ficar **bloqueado** para novas saídas até ser resolvido.
+- **Manutenção**: ao mandar um item para conserto você informa onde ele está (assistência, técnico, bancada), o motivo, a OS e a previsão de retorno. A tela mostra todos os itens em manutenção, os atrasados e o histórico, com atualizações e o registro do retorno.
 - **Etiquetas** com QR Code e código de barras (térmicas 40×25, 50×30, 60×40 ou folha A4 com 24 etiquetas)
 - **Leitor de código de barras/QR USB**: bipe um item em qualquer tela para abrir, adicionar à saída ou dar baixa na entrada
 - Exportação do inventário para Excel (CSV), backup automático e backup manual

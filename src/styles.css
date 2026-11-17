@@ -385,3 +385,23 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
   .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .dash, .out-layout, .detail { grid-template-columns: 1fr; }
 }
+
+/* ---------- Manutenção ---------- */
+svg.i.mini { width: 12px; height: 12px; vertical-align: -1px; }
+.mt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.mt-card { display: flex; flex-direction: column; }
+.mt-card.late { border-color: rgba(255,84,104,.45); }
+.mt-card.done { opacity: .8; }
+.mt-top { display: flex; gap: 12px; align-items: center; }
+.mt-name { display: block; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-name:hover { color: var(--accent); }
+.mt-loc { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 12px; border-radius: 12px; background: rgba(77,163,255,.08); border: 1px solid rgba(77,163,255,.25); }
+.mt-loc > svg { color: var(--info); margin-top: 1px; }
+.mt-loc b { display: block; font-size: 14.5px; }
+.mt-loc small { color: var(--muted); }
+.mt-motivo { margin-top: 12px; color: #c9ccd4; font-size: 13.5px; }
+.mt-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 12px; font-size: 13px; }
+.mt-meta span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+.mt-meta em { font-style: normal; font-size: 12px; margin-left: 6px; }
+.mt-upd { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.mt-upd small { display: block; color: var(--muted); font-size: 11.5px; }
