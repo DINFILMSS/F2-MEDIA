@@ -87,11 +87,12 @@ const pill = (k, map = STATUS) => `<span class="pill ${k}">${map[k] || k}</span>
 // Banco de dados
 // ============================================================
 const DEFAULT_TERMO = `Declaro ter recebido os equipamentos relacionados acima, em perfeito estado de conservação e funcionamento, de propriedade de {empresa}, comprometendo-me a utilizá-los exclusivamente para a produção indicada e a devolvê-los até a data prevista de retorno, nas mesmas condições em que os recebi.
-Em caso de dano, perda, furto ou extravio, assumo a responsabilidade pelo ressarcimento do valor de reposição indicado neste termo, salvo desgaste natural decorrente do uso adequado.`;
+Em caso de dano, perda, furto ou extravio, assumo a responsabilidade pelo reparo ou reposição dos equipamentos, salvo desgaste natural decorrente do uso adequado.`;
+const OLD_TERMO_END = 'ressarcimento do valor de reposição indicado neste termo';
 
 const DEFAULT_SETTINGS = {
-  empresa: 'F2 Produtora', subtitulo: 'Controle de equipamentos', cnpj: '', endereco: '', telefone: '', email: '', site: '',
-  logo: null, accent: '#ff4d2e', prefixo: 'F2', seqEquip: 1, seqSaida: 1, seqEntrada: 1,
+  empresa: 'F2 Media', subtitulo: 'Controle de equipamentos', cnpj: '', endereco: '', telefone: '', email: '', site: '',
+  logo: 'assets/logo.png', accent: '#00b2ee', brandV: 2, prefixo: 'F2', seqEquip: 1, seqSaida: 1, seqEntrada: 1,
   categorias: ['Câmeras', 'Lentes', 'Iluminação', 'Áudio', 'Grip & Maquinária', 'Monitores', 'Baterias & Energia', 'Cabos & Conexões', 'Armazenamento', 'Tripés & Estabilizadores', 'Drones', 'Acessórios'],
   termo: DEFAULT_TERMO, operador: '',
   label: { model: 't50x30', qr: true, barcode: false, logo: true, nome: true, serie: true, prop: true, copies: 1 }
@@ -106,6 +107,11 @@ async function loadDB() {
     db = data;
     db.settings = { ...DEFAULT_SETTINGS, ...data.settings, label: { ...DEFAULT_SETTINGS.label, ...(data.settings.label || {}) } };
     db.equipamentos = db.equipamentos || []; db.movimentacoes = db.movimentacoes || [];
+    if ((data.settings.brandV || 0) < 2) {
+      Object.assign(db.settings, { brandV: 2, logo: data.settings.logo || 'assets/logo.png', accent: data.settings.logo ? db.settings.accent : '#00b2ee' });
+      if (!data.settings.empresa || data.settings.empresa === 'F2 Produtora') db.settings.empresa = 'F2 Media';
+    }
+    if ((db.settings.termo || '').includes(OLD_TERMO_END)) db.settings.termo = DEFAULT_TERMO;
   }
 }
 function commit() {
@@ -720,9 +726,10 @@ route(/^#\/saida\/nova$/, {
     const drawCart = () => {
       const items = d.itens.map(eqById).filter(Boolean);
       $('#cartCount').textContent = items.length ? `${items.length} item(ns)` : '';
-      $('#cart').innerHTML = items.length ? items.map((e, i) => `<div class="cart-item" data-id="${e.id}"><span class="muted mono" style="width:22px;text-align:right">${i + 1}</span>${photo(e, 'thumb')}<div class="grow"><b>${esc(e.nome)}</b><small><span class="mono" style="color:var(--accent)">${esc(e.codigo)}</span>${e.serie ? ' · SN ' + esc(e.serie) : ''}${e.acessorios ? ' · ' + esc(e.acessorios) : ''}</small></div><span class="muted" style="font-size:12.5px">${e.valor ? money(e.valor) : ''}</span><button class="btn ghost icon sm" data-rm="${e.id}">${ic('x')}</button></div>`).join('')
-        + `<div class="cart-total"><span>Valor total de reposição</span><span>${money(items.reduce((a, e) => a + (+e.valor || 0), 0))}</span></div>`
+      $('#cart').innerHTML = items.length ? items.map((e, i) => `<div class="cart-item" data-id="${e.id}"><span class="muted mono" style="width:22px;text-align:right">${i + 1}</span>${photo(e, 'thumb')}<div class="grow"><b>${esc(e.nome)}</b><small><span class="mono" style="color:var(--accent)">${esc(e.codigo)}</span>${e.serie ? ' · SN ' + esc(e.serie) : ''}${e.acessorios ? ' · ' + esc(e.acessorios) : ''}</small></div><input class="input" data-iobs="${e.id}" value="${esc((d.obsItens || {})[e.id] || '')}" placeholder="Observação (opcional)" style="width:210px;padding:7px 10px;font-size:13px"><button class="btn ghost icon sm" data-rm="${e.id}">${ic('x')}</button></div>`).join('')
+        + `<div class="cart-total"><span>Total</span><span>${items.length} ${items.length === 1 ? 'item' : 'itens'}</span></div>`
         : `<div class="empty" style="padding:30px">${ic('scan')}<h4>Nenhum item ainda</h4>Use um leitor de código de barras/QR ou busque acima.</div>`;
+      $$('[data-iobs]').forEach(i => i.oninput = () => { (d.obsItens = d.obsItens || {})[i.dataset.iobs] = i.value; });
       $$('[data-rm]').forEach(b => b.onclick = () => { d.itens = d.itens.filter(x => x !== b.dataset.rm); drawCart(); drawPicker(); });
     };
     let pickOpen = false;
@@ -763,7 +770,7 @@ route(/^#\/saida\/nova$/, {
         id: uid(), numero: `S-${pad(db.settings.seqSaida++)}`, tipo: 'saida',
         projeto: d.projeto.trim(), cliente: d.cliente.trim(), local: d.local.trim(), responsavel: d.responsavel.trim(), documento: d.documento.trim(), telefone: d.telefone.trim(), entreguePor: d.entreguePor.trim(),
         dataSaida: fromInput(d.dataSaida), previsaoRetorno: fromInput(d.previsaoRetorno), obs: d.obs.trim(), criadoEm: new Date().toISOString(),
-        itens: d.itens.map(id => { const e = eqById(id); return { eqId: id, codigo: e.codigo, nome: e.nome, marca: e.marca, modelo: e.modelo, serie: e.serie, valor: +e.valor || 0, acessorios: e.acessorios || '', retornado: false }; }),
+        itens: d.itens.map(id => { const e = eqById(id); return { eqId: id, codigo: e.codigo, nome: e.nome, marca: e.marca, modelo: e.modelo, serie: e.serie, valor: +e.valor || 0, acessorios: e.acessorios || '', obs: ((d.obsItens || {})[id] || '').trim(), retornado: false }; }),
         retornos: []
       };
       m.itens.forEach(i => { eqById(i.eqId).status = 'em_uso'; });
@@ -924,7 +931,6 @@ function docFooter(code) {
   return `<div class="ft"><span>Documento gerado em ${fDT(new Date())} · ${esc(db.settings.empresa)} — Sistema de Equipamentos</span>${Codes.qrSVG(code, { size: 52 })}</div>`;
 }
 function docSaida(m) {
-  const total = m.itens.reduce((a, i) => a + (+i.valor || 0), 0);
   const termo = (db.settings.termo || '').replace(/\{empresa\}/g, db.settings.empresa).replace(/\{responsavel\}/g, m.responsavel);
   return `<div class="docp">
     ${docHeader('Termo de retirada', m.numero, 'SAÍDA', 'var(--accent)')}
@@ -934,11 +940,11 @@ function docSaida(m) {
       <div><span>Responsável pela retirada</span><b>${esc(m.responsavel)}</b></div><div><span>Documento</span><b>${esc(m.documento || '—')}</b></div><div><span>Telefone</span><b>${esc(m.telefone || '—')}</b></div>
       <div><span>Data de saída</span><b>${fDT(m.dataSaida)}</b></div><div><span>Previsão de retorno</span><b>${fDT(m.previsaoRetorno)}</b></div><div><span>Local de uso</span><b>${esc(m.local || '—')}</b></div>
     </div>
-    <table><thead><tr><th style="width:7mm">#</th><th style="width:22mm">Código</th><th>Equipamento</th><th style="width:32mm">Nº série</th><th class="r" style="width:28mm">Valor</th><th style="width:12mm;text-align:center">Ret.</th></tr></thead><tbody>
-      ${m.itens.map((i, n) => `<tr><td>${n + 1}</td><td><b>${esc(i.codigo)}</b></td><td><b>${esc(i.nome)}</b>${(() => { const sub = [[i.marca, i.modelo].filter(Boolean).join(' · '), i.acessorios && 'Acompanha: ' + i.acessorios].filter(Boolean).join(' — '); return sub ? `<br><span style="color:#666;font-size:7.8pt">${esc(sub)}</span>` : ''; })()}</td><td>${esc(i.serie || '—')}</td><td class="r">${money(i.valor)}</td><td style="text-align:center">${i.retornado ? '✔' : '☐'}</td></tr>`).join('')}
+    <table><thead><tr><th style="width:7mm">#</th><th style="width:22mm">Código</th><th>Equipamento</th><th style="width:28mm">Nº série</th><th style="width:48mm">Observação</th><th style="width:10mm;text-align:center">Ret.</th></tr></thead><tbody>
+      ${m.itens.map((i, n) => `<tr><td>${n + 1}</td><td><b>${esc(i.codigo)}</b></td><td><b>${esc(i.nome)}</b>${(() => { const sub = [[i.marca, i.modelo].filter(Boolean).join(' · '), i.acessorios && 'Acompanha: ' + i.acessorios].filter(Boolean).join(' — '); return sub ? `<br><span style="color:#666;font-size:7.8pt">${esc(sub)}</span>` : ''; })()}</td><td>${esc(i.serie || '—')}</td><td class="iobs">${esc(i.obs || '')}</td><td style="text-align:center">${i.retornado ? '✔' : '☐'}</td></tr>`).join('')}
     </tbody></table>
-    <div class="tot"><span>${m.itens.length} ${m.itens.length === 1 ? 'item' : 'itens'}</span><span>Valor total de reposição: ${money(total)}</span></div>
-    ${m.obs ? `<div class="obs"><span>Observações</span>${esc(m.obs)}</div>` : ''}
+    <div class="tot"><span>${m.itens.length} ${m.itens.length === 1 ? 'item' : 'itens'}</span></div>
+    <div class="obs box"><span>Observações</span>${m.obs ? esc(m.obs) : '<i class="lines"></i><i class="lines"></i>'}</div>
     <div class="terms">${esc(termo)}</div>
     <div class="signs"><div>${esc(m.entreguePor || db.settings.empresa)}<small>Liberado por (${esc(db.settings.empresa)})</small></div><div>${esc(m.responsavel)}<small>Responsável pela retirada${m.documento ? ' · ' + esc(m.documento) : ''}</small></div></div>
     ${docFooter(m.numero)}
@@ -953,12 +959,12 @@ function docEntrada(m, r) {
       <div class="w2"><span>Produção / Projeto</span><b>${esc(m.projeto)}</b></div><div><span>Referente à saída</span><b>${esc(m.numero)} · ${fDate(m.dataSaida)}</b></div>
       <div><span>Devolvido por</span><b>${esc(r.devolvidoPor || m.responsavel)}</b></div><div><span>Recebido por</span><b>${esc(r.recebidoPor || '—')}</b></div><div><span>Data da devolução</span><b>${fDT(r.data)}</b></div>
     </div>
-    <table><thead><tr><th style="width:7mm">#</th><th style="width:22mm">Código</th><th>Equipamento</th><th style="width:30mm">Nº série</th><th style="width:34mm">Condição</th></tr></thead><tbody>
-      ${r.itens.map((i, n) => `<tr><td>${n + 1}</td><td><b>${esc(i.codigo)}</b></td><td><b>${esc(i.nome)}</b>${i.obs ? `<br><span style="color:#c00;font-size:8pt">${esc(i.obs)}</span>` : ''}</td><td>${esc(i.serie || '—')}</td><td><span class="cond ${i.condicao !== 'ok' ? 'bad' : ''}">${CONDICOES[i.condicao] || 'OK'}</span></td></tr>`).join('')}
+    <table><thead><tr><th style="width:7mm">#</th><th style="width:22mm">Código</th><th>Equipamento</th><th style="width:26mm">Nº série</th><th style="width:26mm">Condição</th><th style="width:48mm">Observação</th></tr></thead><tbody>
+      ${r.itens.map((i, n) => `<tr><td>${n + 1}</td><td><b>${esc(i.codigo)}</b></td><td><b>${esc(i.nome)}</b></td><td>${esc(i.serie || '—')}</td><td><span class="cond ${i.condicao !== 'ok' ? 'bad' : ''}">${CONDICOES[i.condicao] || 'OK'}</span></td><td class="iobs">${esc(i.obs || '')}</td></tr>`).join('')}
     </tbody></table>
     <div class="tot"><span>${r.itens.length} ${r.itens.length === 1 ? 'item devolvido' : 'itens devolvidos'}</span></div>
     ${pend.length ? `<div class="pend"><b>Itens ainda pendentes nesta saída (${pend.length}):</b> ${pend.map(i => `${esc(i.codigo)} – ${esc(i.nome)}`).join('; ')}</div>` : `<div class="obs" style="color:#1a9e5a;font-weight:700">✔ Todos os itens da saída ${esc(m.numero)} foram devolvidos.</div>`}
-    ${r.obs ? `<div class="obs"><span>Observações</span>${esc(r.obs)}</div>` : ''}
+    <div class="obs box"><span>Observações</span>${r.obs ? esc(r.obs) : '<i class="lines"></i><i class="lines"></i>'}</div>
     <div class="terms">Declaramos que os equipamentos acima foram devolvidos e conferidos na data indicada, nas condições descritas. Avarias ou faltas apontadas ficam sob responsabilidade de ${esc(m.responsavel)} conforme o termo de retirada ${esc(m.numero)}.</div>
     <div class="signs"><div>${esc(r.devolvidoPor || m.responsavel)}<small>Devolvido por</small></div><div>${esc(r.recebidoPor || db.settings.empresa)}<small>Recebido e conferido por (${esc(db.settings.empresa)})</small></div></div>
     ${docFooter(r.numero)}
@@ -991,6 +997,7 @@ route(/^#\/doc\/(saida|entrada)\/([\w]+)(?:\/([\w]+))?$/, {
         <p>${esc(m.projeto)} · ${esc(m.responsavel)} · ${pill(st, MOV_STATUS)}</p></div>
         <div class="actions">
           ${tipo === 'saida' && st !== 'fechada' ? `<button class="btn danger" id="cancelMov">${ic('x')}Cancelar saída</button><button class="btn" data-go="#/entrada/${m.id}">${ic('in')}Registrar entrada</button>` : ''}
+          <button class="btn" id="editObs">${ic('edit')}Editar observações</button>
           ${Store.desktop ? `<button class="btn" id="pdf">${ic('pdf')}Salvar PDF</button>` : ''}
           <button class="btn primary" id="print">${ic('printer')}Imprimir</button></div></div>
       <div class="actions" style="margin-bottom:6px">${docs}</div>
@@ -1002,6 +1009,25 @@ route(/^#\/doc\/(saida|entrada)\/([\w]+)(?:\/([\w]+))?$/, {
     const name = `${r ? r.numero : m.numero} ${m.projeto}`.replace(/[\\/:*?"<>|]/g, '-') + '.pdf';
     $('#print').onclick = () => printHTML(`<div class="paper">${$('#paper').innerHTML}</div>`);
     const pdf = $('#pdf'); if (pdf) pdf.onclick = () => printHTML(`<div class="paper">${$('#paper').innerHTML}</div>`, undefined, name);
+    $('#editObs').onclick = () => {
+      const target = r || m, itens = r ? r.itens : m.itens;
+      modal({
+        title: `Observações · ${esc(target.numero)}`,
+        body: `<div class="field"><label>Observações gerais do documento</label><textarea class="input" id="o_geral" rows="4" placeholder="Ex.: equipamento entregue com case danificado, retirada autorizada por…">${esc(target.obs || '')}</textarea></div>
+          <h3 style="font-size:12px;margin:20px 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Observação por item</h3>
+          ${itens.map((i, n) => `<div style="display:grid;grid-template-columns:230px 1fr;gap:12px;align-items:center;margin-bottom:8px"><div style="min-width:0"><b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.nome)}</b><small class="mono" style="color:var(--accent)">${esc(i.codigo)}</small></div><input class="input" data-io="${n}" value="${esc(i.obs || '')}" placeholder="Observação deste item"></div>`).join('')}`,
+        foot: `<button class="btn" data-c>Cancelar</button><button class="btn primary" data-ok>${ic('check')}Salvar</button>`,
+        onMount(el, api) {
+          el.querySelector('[data-c]').onclick = api.close;
+          el.querySelector('[data-ok]').onclick = () => {
+            target.obs = el.querySelector('#o_geral').value.trim();
+            el.querySelectorAll('[data-io]').forEach(inp => { itens[+inp.dataset.io].obs = inp.value.trim(); });
+            if (r) r.itens.forEach(ri => { const it = m.itens.find(x => x.eqId === ri.eqId && x.retornoId === r.id); if (it) it.obsRetorno = ri.obs; });
+            commit(); api.close(); router(); toast('Observações salvas');
+          };
+        }
+      });
+    };
     const c = $('#cancelMov');
     if (c) c.onclick = async () => {
       if ((m.retornos || []).length) return toast('Esta saída já tem entradas registradas — registre a devolução dos itens restantes', 'warn');
@@ -1123,7 +1149,7 @@ route(/^#\/config$/, {
   render() {
     const s = db.settings;
     const f = (k, l, attrs = '') => `<div class="field"><label>${l}</label><input class="input" data-s="${k}" value="${esc(s[k])}" ${attrs}></div>`;
-    const colors = ['#ff4d2e', '#ff2d55', '#ffb020', '#2fd47a', '#4da3ff', '#8b5cf6', '#e5e7eb'];
+    const colors = ['#00b2ee', '#ff4d2e', '#ff2d55', '#ffb020', '#2fd47a', '#4da3ff', '#8b5cf6', '#e5e7eb'];
     return `
       <div class="page-head"><div><h1>Configurações</h1><p>Identidade da empresa, documentos, dados e atualizações.</p></div></div>
       <div class="cfg">

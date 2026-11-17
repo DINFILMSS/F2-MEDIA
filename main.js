@@ -117,7 +117,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1100, minHeight: 700,
     backgroundColor: '#0e0f12',
-    title: 'F2 Equipamentos',
+    title: 'F2 Media Equipamentos',
     icon: path.join(__dirname, 'build', 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false }

@@ -1,6 +1,6 @@
 {
   "name": "f2-equipamentos",
-  "productName": "F2 Equipamentos",
+  "productName": "F2 Media Equipamentos",
   "version": "1.0.0",
   "description": "Sistema de controle de equipamentos da produtora: catálogo, saídas, entradas, etiquetas e documentos.",
   "main": "main.js",
@@ -9,7 +9,7 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/SEU-USUARIO/f2-equipamentos.git"
+    "url": "https://github.com/DINFILMSS/F2-MEDIA.git"
   },
   "scripts": {
     "start": "electron .",
@@ -26,7 +26,7 @@
   },
   "build": {
     "appId": "br.com.f2.equipamentos",
-    "productName": "F2 Equipamentos",
+    "productName": "F2 Media Equipamentos",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -45,8 +45,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "F2 Equipamentos",
-      "artifactName": "F2-Equipamentos-Setup-${version}.${ext}"
+      "shortcutName": "F2 Media Equipamentos",
+      "artifactName": "F2-Media-Setup-${version}.${ext}"
     },
     "mac": {
       "target": "dmg",
@@ -55,8 +55,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "SEU-USUARIO",
-        "repo": "f2-equipamentos",
+        "owner": "DINFILMSS",
+        "repo": "F2-MEDIA",
         "releaseType": "release"
       }
     ]

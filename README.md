@@ -1,4 +1,4 @@
-# F2 Equipamentos
+# F2 Media — Equipamentos
 
 Sistema desktop para controle de equipamentos da produtora.
 
@@ -25,22 +25,18 @@ npm start
 
 > Você também pode abrir `src/index.html` direto no navegador para testar (versão web, sem atualização automática).
 
-## 2. Colocar no GitHub (uma vez só)
+## 2. GitHub
 
-1. Crie um repositório no GitHub chamado `f2-equipamentos` (**público**, para as atualizações funcionarem sem token).
-2. Configure seu usuário no projeto:
-   ```bash
-   npm run setup-github -- SEU-USUARIO f2-equipamentos
-   ```
-3. Envie o código:
-   ```bash
-   git init
-   git add .
-   git commit -m "Primeira versão"
-   git branch -M main
-   git remote add origin https://github.com/SEU-USUARIO/f2-equipamentos.git
-   git push -u origin main
-   ```
+O código já está em https://github.com/DINFILMSS/F2-MEDIA. Para baixar e trabalhar nele:
+
+```bash
+git clone https://github.com/DINFILMSS/F2-MEDIA.git
+cd F2-MEDIA
+npm install
+npm start
+```
+
+> O repositório precisa ser **público** para os computadores receberem as atualizações sem token.
 
 ## 3. Lançar uma versão (instalador + atualização)
 
@@ -51,7 +47,7 @@ git push --follow-tags
 
 O GitHub Actions monta o instalador do Windows e publica em **Releases** automaticamente (aba *Actions* para acompanhar, leva ~5 min).
 
-- **Primeira instalação:** baixe `F2-Equipamentos-Setup-x.y.z.exe` em *Releases* e instale em cada computador.
+- **Primeira instalação:** baixe `F2-Media-Setup-x.y.z.exe` em *Releases* e instale em cada computador.
 - **Próximas versões:** os computadores que já têm o app recebem a atualização sozinhos (o app verifica ao abrir e a cada hora). Aparece a faixa "Nova versão pronta — Reiniciar e atualizar".
 
 > Como o instalador não tem assinatura digital paga, o Windows pode mostrar "O Windows protegeu o computador" na primeira instalação: clique em **Mais informações → Executar assim mesmo**.
@@ -60,7 +56,7 @@ O GitHub Actions monta o instalador do Windows e publica em **Releases** automat
 
 Os dados **não** ficam dentro do app, então atualizar ou reinstalar não apaga nada.
 
-- Padrão: `%APPDATA%\F2 Equipamentos\f2-equipamentos-dados.json`
+- Padrão: `%APPDATA%\F2 Media Equipamentos\f2-equipamentos-dados.json`
 - Backups automáticos: pasta `backups-f2` ao lado do arquivo de dados (últimos 30)
 - Para usar em vários computadores: **Configurações → Dados & backup → Mudar pasta de dados** e escolha uma pasta compartilhada. Quando outro computador salva, a tela atualiza sozinha.
 
