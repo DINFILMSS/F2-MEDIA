@@ -10,6 +10,7 @@ Sistema desktop para controle de equipamentos da produtora.
 - **Manutenção**: ao mandar um item para conserto você informa onde ele está (assistência, técnico, bancada), o motivo, a OS e a previsão de retorno. A tela mostra todos os itens em manutenção, os atrasados e o histórico, com atualizações e o registro do retorno.
 - **Etiquetas** com QR Code e código de barras (térmicas 40×25, 50×30, 60×40 ou folha A4 com 24 etiquetas)
 - **Leitor de código de barras/QR USB**: bipe um item em qualquer tela para abrir, adicionar à saída ou dar baixa na entrada
+- **Importar equipamentos** (Catálogo → Importar): soma itens de um arquivo de importação ao inventário, sem apagar nada e sem duplicar o que já foi importado
 - Exportação do inventário para Excel (CSV), backup automático e backup manual
 - Pasta de dados configurável: aponte para uma pasta de rede/Drive/OneDrive para usar em vários computadores
 - **Atualização automática pelo GitHub**: quando sai uma nova versão, o app baixa sozinho e atualiza ao reiniciar, sem precisar desinstalar

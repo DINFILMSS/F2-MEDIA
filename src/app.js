@@ -74,7 +74,7 @@ const ic = (n, cls = '') => `<svg viewBox="0 0 24 24" class="i ${cls}">${P[n] ||
 const CAT_ICONS = [
   [/c[aâ]mera|corpo/, 'video'], [/lente|[oó]tica/, 'aperture'], [/ilumin|luz|led/, 'bulb'], [/[aá]udio|som|microf/, 'mic'],
   [/grip|maquin/, 'wrench'], [/monitor|v[ií]deo assist/, 'monitor'], [/bateria|energia/, 'battery'], [/cabo|conex/, 'plug'],
-  [/armazen|cart[aã]o|ssd|hd/, 'hdd'], [/trip[eé]|estabiliz|gimbal/, 'tripod'], [/drone/, 'drone']
+  [/armazen|cart[aã]o|ssd|hd/, 'hdd'], [/comunica|intercom/, 'mic'], [/stream/, 'monitor'], [/trip[eé]|estabiliz|gimbal/, 'tripod'], [/drone/, 'drone']
 ];
 const catIcon = c => { const n = norm(c); const f = CAT_ICONS.find(([r]) => r.test(n)); return f ? f[1] : 'box'; };
 const photo = (eq, cls = '') => `<div class="ph ${cls}">${eq && eq.foto ? `<img src="${eq.foto}" alt="">` : ic(catIcon(eq && eq.categoria))}</div>`;
@@ -95,7 +95,7 @@ const OLD_TERMO_END = 'ressarcimento do valor de reposição indicado neste term
 const DEFAULT_SETTINGS = {
   empresa: 'F2 Media', subtitulo: 'Controle de equipamentos', cnpj: '', endereco: '', telefone: '', email: '', site: '',
   logo: 'assets/logo.png', accent: '#00b2ee', brandV: 2, prefixo: 'F2', seqEquip: 1, seqSaida: 1, seqEntrada: 1, seqDiv: 1, seqManut: 1,
-  categorias: ['Câmeras', 'Lentes', 'Iluminação', 'Áudio', 'Grip & Maquinária', 'Monitores', 'Baterias & Energia', 'Cabos & Conexões', 'Armazenamento', 'Tripés & Estabilizadores', 'Drones', 'Acessórios'],
+  categorias: ['Câmeras', 'Lentes', 'Iluminação', 'Áudio', 'Grip & Maquinária', 'Monitores', 'Baterias & Energia', 'Cabos & Conexões', 'Armazenamento', 'Tripés & Estabilizadores', 'Drones', 'Comunicação', 'Streaming', 'Acessórios'],
   termo: DEFAULT_TERMO, operador: '',
   label: { model: 't50x30', qr: true, barcode: false, logo: true, nome: true, serie: true, prop: true, copies: 1 }
 };
@@ -449,6 +449,7 @@ route(/^#\/catalogo$/, {
       <div class="page-head"><div><h1>Catálogo</h1><p>${db.equipamentos.length} equipamentos cadastrados</p></div>
         <div class="actions">
           <button class="btn" id="selMode">${ic('tag')}Selecionar p/ etiquetas</button>
+          <button class="btn" id="importEq">${ic('upload')}Importar</button>
           <button class="btn" id="exportCsv">${ic('download')}Exportar planilha</button>
           <button class="btn primary" id="addEq">${ic('plus')}Novo equipamento</button>
         </div></div>
@@ -522,10 +523,73 @@ route(/^#\/catalogo$/, {
     $('#addEq').onclick = () => editEquip();
     $('#selMode').onclick = () => { $$('#eqList [data-id]').forEach(el => ui.sel.add(el.dataset.id)); draw(); };
     $('#exportCsv').onclick = exportCSV;
+    $('#importEq').onclick = importEquip;
     current.refresh = draw;
     draw();
   }
 });
+
+// ============================================================
+// IMPORTAR EQUIPAMENTOS (soma ao inventário, nunca apaga)
+// ============================================================
+async function importEquip() {
+  const f = await pickFile('.json,application/json'); if (!f) return;
+  let data;
+  try { data = JSON.parse(await f.text()); } catch { return toast('Arquivo inválido', 'err'); }
+  if (data && data.settings && Array.isArray(data.equipamentos) && !data.tipo) return toast('Esse arquivo é um backup completo — use "Restaurar backup" em Configurações', 'warn');
+  const lines = Array.isArray(data) ? data : data && Array.isArray(data.equipamentos) ? data.equipamentos : null;
+  if (!lines || !lines.length) return toast('Nenhum equipamento encontrado no arquivo', 'err');
+  const keys = new Set(db.equipamentos.map(e => e.importKey).filter(Boolean));
+  const serials = new Set(db.equipamentos.map(e => norm(e.serie)).filter(Boolean));
+  const novos = [], pulados = [];
+  lines.forEach((l, li) => {
+    if (!l || !String(l.nome || '').trim()) return;
+    const qtd = Math.max(1, Math.min(500, +l.quantidade || 1));
+    for (let i = 0; i < qtd; i++) {
+      const key = `${l.chave || 'imp-' + li}#${i + 1}`;
+      if (keys.has(key)) { pulados.push({ l, motivo: 'já importado antes' }); continue; }
+      if (i === 0 && l.serie && serials.has(norm(l.serie))) { pulados.push({ l, motivo: `nº de série ${l.serie} já existe` }); continue; }
+      novos.push({ l, key });
+    }
+  });
+  const porCat = {};
+  novos.forEach(({ l }) => { const c = l.categoria || 'Sem categoria'; porCat[c] = (porCat[c] || 0) + 1; });
+  const conferir = new Set(novos.filter(({ l }) => l.obs).map(({ l }) => l)).size;
+  const first = `${db.settings.prefixo}-${pad(db.settings.seqEquip)}`;
+  modal({
+    title: 'Importar equipamentos', size: 'lg',
+    body: `<p style="margin:0 0 16px">Arquivo <b>${esc(f.name)}</b>${data.fonte ? ` (gerado a partir de <b>${esc(data.fonte)}</b>)` : ''}.
+      Os itens são <b>somados</b> ao inventário atual — nada é apagado.</p>
+      <div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <div class="kpi acc"><div class="ico">${ic('plus')}</div><div class="lbl">Novos itens</div><div class="val">${novos.length}</div><div class="sub">códigos a partir de ${esc(first)}</div></div>
+        <div class="kpi info"><div class="ico">${ic('copy')}</div><div class="lbl">Já existentes (pulados)</div><div class="val">${pulados.length}</div><div class="sub">não serão duplicados</div></div>
+        <div class="kpi warn"><div class="ico">${ic('alert')}</div><div class="lbl">Com nota "conferir"</div><div class="val">${conferir}</div><div class="sub">veja em Observações</div></div>
+      </div>
+      ${novos.length ? `<table class="table"><thead><tr><th>Categoria</th><th class="r">Unidades</th></tr></thead><tbody>${Object.entries(porCat).map(([c, n]) => `<tr><td>${ic(catIcon(c), 'mini')} ${esc(c)}</td><td class="r">${n}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">${ic('check')}<h4>Nada novo para importar</h4>Todos os itens deste arquivo já estão no inventário.</div>`}`,
+    foot: `<button class="btn" data-c>Cancelar</button>${novos.length ? `<button class="btn primary" data-ok>${ic('upload')}Importar ${novos.length} itens</button>` : ''}`,
+    onMount(el, api) {
+      el.querySelector('[data-c]').onclick = api.close;
+      const ok = el.querySelector('[data-ok]');
+      if (ok) ok.onclick = () => {
+        const now = new Date().toISOString();
+        novos.forEach(({ l, key }) => {
+          const cat = String(l.categoria || '').trim();
+          if (cat && !db.settings.categorias.includes(cat)) db.settings.categorias.push(cat);
+          const n = {
+            id: uid(), codigo: nextCode(), nome: String(l.nome).trim(), categoria: cat, marca: l.marca || '', modelo: l.modelo || '',
+            serie: l.serie || '', valor: parseMoney(l.valor), aquisicao: l.aquisicao || '', acessorios: l.acessorios || '', obs: l.obs || '',
+            foto: null, status: STATUS[l.status] && l.status !== 'em_uso' ? l.status : 'disponivel', criadoEm: now, importKey: key, log: []
+          };
+          eqLog(n, `Importado de ${data.fonte || f.name}${l.origem ? ' (' + l.origem + ')' : ''}`);
+          db.equipamentos.push(n);
+        });
+        commit(); api.close();
+        toast(`${novos.length} equipamentos importados`);
+        ui.cat = 'Todas'; ui.status = 'todos'; ui.q = ''; go('#/catalogo');
+      };
+    }
+  });
+}
 
 function exportCSV() {
   const cols = ['codigo', 'nome', 'categoria', 'marca', 'modelo', 'serie', 'status', 'valor', 'aquisicao', 'acessorios', 'obs'];
@@ -1537,6 +1601,7 @@ route(/^#\/config$/, {
             <div class="actions">
               ${Store.desktop ? `<button class="btn" id="chDir">${ic('folder')}Mudar pasta de dados</button><button class="btn" id="opDir">${ic('folder')}Abrir pasta</button>` : ''}
               <button class="btn" id="bkExp">${ic('download')}Exportar backup</button><button class="btn" id="bkImp">${ic('upload')}Restaurar backup</button>
+              <button class="btn" id="eqImp">${ic('upload')}Importar equipamentos</button>
               <button class="btn" id="csvExp">${ic('download')}Exportar inventário (Excel)</button>
               ${db.equipamentos.length ? '' : `<button class="btn" id="demo2">${ic('sparkle')}Carregar exemplo</button>`}
               <button class="btn danger" id="wipe" style="margin-left:auto">${ic('trash')}Apagar tudo</button>
@@ -1577,6 +1642,7 @@ route(/^#\/config$/, {
     $('#addCat').onclick = addCat; $('#newCat').onkeydown = e => e.key === 'Enter' && addCat();
     $('#bkExp').onclick = () => { download(`backup-equipamentos-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(db, null, 1), 'application/json'); toast('Backup exportado'); };
     $('#csvExp').onclick = exportCSV;
+    $('#eqImp').onclick = importEquip;
     $('#bkImp').onclick = async () => {
       const f = await pickFile('.json,application/json'); if (!f) return;
       try {
